@@ -900,3 +900,110 @@ button:disabled,button[disabled]{opacity:.5;cursor:not-allowed;transform:none!im
   .more-events{display:none}
   .submission-item{grid-template-columns:1fr auto}.submission-item>:last-child{grid-column:1/-1;justify-self:start}
 }
+
+/* Responsive layout overrides */
+*,*::before,*::after{box-sizing:border-box}
+html,body{max-width:100%;overflow-x:clip}
+img,video,canvas,iframe{max-width:100%}
+svg{max-width:100%}
+#app{min-height:100vh;min-height:100dvh}
+.app-shell{min-height:100vh;min-height:100dvh}
+.sidebar{width:240px;height:100vh;height:100dvh;top:0;bottom:auto;overflow:hidden}
+.sidebar nav{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.side-bottom{flex:0 0 auto;margin-top:0}
+.main{min-width:0}
+.content{width:100%;padding:clamp(1.5rem,3vw,2.75rem) clamp(1rem,3.2vw,2.75rem) clamp(2rem,5vw,4.75rem)}
+.stats-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.data-table{min-width:620px}
+.login-page{min-height:100vh;min-height:100dvh}
+.login-heading h2{font-size:clamp(2rem,3.5vw,2.875rem)}
+.art-copy h1{font-size:clamp(2.75rem,5.5vw,4.5rem)}
+.demo-accounts>div{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.5rem 1rem;align-items:start}
+.demo-accounts code{min-width:0;overflow-wrap:anywhere;white-space:normal}
+.drawer-overlay{display:none}
+
+@media(max-width:1024px){
+  .sidebar{width:min(85vw,320px);z-index:30;padding-top:max(1.25rem,env(safe-area-inset-top));padding-bottom:max(1.25rem,env(safe-area-inset-bottom));transform:translateX(-105%);transition:transform .25s var(--ease);box-shadow:10px 0 35px rgba(18,59,120,.12)}
+  #app.menu-open .sidebar{transform:translateX(0)}
+  .drawer-overlay{display:block;position:fixed;inset:0;z-index:29;border:0;border-radius:0;padding:0;background:rgba(18,32,51,.48);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .25s ease,visibility .25s ease}
+  #app.menu-open .drawer-overlay{opacity:1;visibility:visible;pointer-events:auto}
+  .main{width:100%;margin-left:0}
+  .menu-btn{display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;border:0;border-radius:10px;background:#F7F9FC;color:var(--deep);font-size:20px}
+  .mobile-close{display:grid;place-items:center;position:absolute;right:14px;top:14px;width:44px;height:44px;border:0;border-radius:50%;background:#F3F5F8;color:var(--deep);font-size:24px}
+  .side-brand{padding-right:52px}
+  .topbar{padding-inline:clamp(1rem,3vw,2rem);gap:12px}
+  .crumb{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .content{max-width:none;padding:clamp(1.5rem,3.2vw,2rem) clamp(1rem,3vw,1.875rem) 3.5rem}
+  .stats-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+  .hero-next{grid-template-columns:minmax(0,1fr) minmax(0,.95fr)}
+  .next-content{min-width:0}
+  .virtual-hero{grid-template-columns:minmax(0,1fr) minmax(0,.95fr)}
+  .virtual-copy h2{font-size:clamp(1.75rem,3vw,2.375rem)}
+  .compact-live-card{grid-template-columns:minmax(0,220px) minmax(0,1fr)}
+}
+
+@media(max-width:900px){
+  .login-page{grid-template-columns:minmax(0,1fr)}
+  .login-art{display:none}
+  .login-panel{min-height:100vh;min-height:100dvh;align-items:start;padding: max(1.25rem,env(safe-area-inset-top)) clamp(1rem,5vw,2rem) 2rem}
+  .login-card{width:min(410px,100%);padding:0}
+  .login-heading{margin:1.25rem 0 1rem}
+  .login-heading h2{font-size:clamp(1.75rem,5vw,2.5rem);line-height:1.05;margin-bottom:.5rem}
+  .login-heading p{margin-bottom:0}
+  .login-card label{margin:.65rem 0}
+  .login-card input{width:100%;height:48px}
+  .primary-btn.full{margin-top:.875rem}
+  .demo-accounts{margin-top:1.5rem}
+}
+
+@media(max-width:600px){
+  .content{padding:1.25rem 1rem 3rem}
+  .topbar{min-height:60px;height:auto;padding:.5rem 1rem;gap:.5rem}
+  .top-actions{gap:.5rem;flex:0 0 auto}
+  .top-actions .icon-btn{width:36px;height:36px}
+  .crumb{font-size:14px}
+  .page-heading{display:flex;flex-direction:column;align-items:flex-start;gap:.75rem;margin-bottom:1.5rem}
+  .page-heading h1{font-size:clamp(1.75rem,7vw,2.25rem);line-height:1.08}
+  .page-heading .heading-actions{width:100%;display:flex;flex-wrap:wrap;gap:.5rem;margin-top:0}
+  .section{margin-top:1.875rem}
+  .section-head{align-items:flex-start;gap:.75rem;flex-wrap:wrap}
+  .stats-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:.75rem}
+  .priority-grid,.course-grid,.teacher-course-grid,.ai-grid,.virtual-session-grid,.flow-steps,.activity-list,.profile-fields,.answer-options,.result-grid,.two-input,.day-events{grid-template-columns:minmax(0,1fr)}
+  .split-grid,.lesson-layout,.virtual-hero,.hero-next,.compact-live-card{grid-template-columns:minmax(0,1fr)!important}
+  .hero-art{display:flex;min-height:190px;padding:1rem}
+  .hero-art .scene-svg{max-height:190px}
+  .next-content{padding:1.5rem}
+  .next-content h2{font-size:clamp(1.75rem,7vw,2.25rem)}
+  .virtual-hero{padding:1.25rem;gap:1rem}
+  .virtual-copy{padding:0}
+  .virtual-copy h2{font-size:clamp(1.75rem,7vw,2.25rem)}
+  .virtual-session-grid{gap:1rem}
+  .flow-steps{gap:.75rem}
+  .compact-live-card .live-mini-visual{height:9.375rem}
+  .compact-live-copy,.live-mini-copy{padding:1.25rem}
+  .course-grid{gap:1rem}
+  .button-row,.heading-actions,.toolbar-group,.toolbar{max-width:100%}
+  .toolbar{align-items:stretch}
+  .toolbar input,.toolbar select,.plan-toolbar select,.toolbar>select{width:100%;max-width:100%;min-width:0}
+  .search{width:100%;min-width:0}
+  .search input{width:100%;min-width:0}
+  .table-wrap{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+  .submission-table,.student-table{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+  .table-head,.table-row{max-width:100%}
+  .lesson-main{padding:1.25rem}
+  .lesson-outline{position:static}
+  .day-event{grid-template-columns:minmax(0,1fr) auto}
+  .login-panel{padding-inline:1.25rem}
+  .login-heading h2{font-size:clamp(1.75rem,8vw,2.25rem)}
+}
+
+@media(max-width:399px){
+  .demo-accounts>div{grid-template-columns:minmax(0,1fr);gap:.15rem}
+  .demo-accounts code{display:block}
+  .login-panel{padding-inline:1rem}
+  .brand{font-size:1.25rem}
+}
+
+@media(pointer:coarse){
+  button,.login-card input,input,select,textarea{min-height:44px}
+}
