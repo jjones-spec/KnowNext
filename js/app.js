@@ -12,7 +12,8 @@ let pendingConfirm = null;
 const ui = {
   courseQuery:'', courseFilter:'all', assessFilter:'all', assignFilter:'all', classFilter:'upcoming', annFilter:'all',
   studentQuery:'', studentFilter:'all', taskSubject:'all', taskSort:'time', taskStatus:'all',
-  calMonth:'', calSelected:'', analyticsTab:'mastery', aiTool:'quiz', aiVariant:0
+  calMonth:'', calSelected:'', analyticsTab:'mastery', aiTool:'quiz', aiVariant:0,
+  institutionQuery:'', institutionStatus:'all', adminQuery:'', userQuery:'', userRole:'all', userStatus:'all'
 };
 
 /* ---------- Demo mastery ---------- */
@@ -48,7 +49,12 @@ function validMeetingUrl(v){ try{ const u=new URL(v); return (u.protocol==='http
 
 /* ---------- Users & roles ---------- */
 function isTeacher(){ return currentUser?.role==='teacher'; }
-function user(){ const base=DEMO_USERS[currentUser?.username]; return base?{...base,...(state.profiles[base.username]||{})}:null; }
+function isAdmin(){ return currentUser?.role==='admin'; }
+function isSuperadmin(){ return currentUser?.role==='superadmin'; }
+function roleLabel(){ if(isSuperadmin()) return 'SUPERADMIN'; if(isAdmin()) return 'ADMIN'; if(isTeacher()) return 'TEACHER'; return 'STUDENT'; }
+function currentInstitution(){ if(!isAdmin() || !currentUser) return null; const userRecord=user(); const institutionId=userRecord?.institutionId || state.institutions?.[0]?.id; return state.institutions?.find(x=>x.id===institutionId) || null; }
+function recordAuditLog(action, record, description, actor=currentUser?.username||'system'){ if(!Array.isArray(state.auditLogs)) state.auditLogs=[]; state.auditLogs.unshift({id:uid('audit'), date:todayISO(), actor, action, record, description}); saveState(); }
+function user(){ const base=DEMO_USERS[currentUser?.username]; const stateProfile = state.profiles?.[base?.username] || {}; if(base?.role==='admin'){ return {...base,...(state.adminAccounts?.find(a=>a.username===base.username)||{}), ...stateProfile}; } if(base?.role==='superadmin'){ return {...base,...stateProfile}; } return base?{...base,...(state.profiles[base.username]||{})}:null; }
 function initials(name){ return name.replace(/^Prof\.\s*/i,'').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0].toUpperCase()).join(''); }
 function firstName(){ return user().name.replace(/^Prof\.\s*/i,'').split(' ')[0]; }
 function passwordFor(username){ return state.credentials[username] || DEMO_USERS[username]?.password; }
@@ -215,13 +221,12 @@ function svgScene(type='study'){
 /* ---------- Login ---------- */
 function renderLogin(){
   document.body.className='login-body';
-  $('#app').innerHTML=`<main class="login-page"><section class="login-art"><div class="art-shape art-blue"></div><div class="art-shape art-yellow"></div><div class="art-dots">• • •<br>• • •</div><div class="art-copy"><span class="eyebrow">STUDY SMARTER. KNOW WHAT'S NEXT.</span><h1>Study Smarter.<br><em>Know What's Next.</em></h1><p>An adaptive learning platform that helps you understand your progress, identify what needs attention, and decide what to do next.</p></div><div class="poster-scene">${svgScene('login')}</div><div class="art-number">01</div></section><section class="login-panel"><div class="login-card"><div class="brand"><img class="brand-logo" src="assets/knownext-logo.png" alt="KnowNext logo"><span>KnowNext</span></div><div class="login-heading"><span class="eyebrow">WELCOME BACK</span><h2>Start where<br>you need to.</h2><p>Sign in to continue your learning journey.</p></div><form id="login-form" data-form="login"><label>Username<input id="login-user" autocomplete="username" placeholder="Enter username" required></label><label>Password<div class="password-wrap"><input id="login-pass" type="password" autocomplete="current-password" placeholder="Enter password" required><button type="button" id="toggle-pass" data-action="toggle-pass">Show</button></div></label><button class="primary-btn full" type="submit">Log in <span>→</span></button><div id="login-error" class="form-error" role="alert"></div></form><div class="demo-accounts"><strong>Demo Accounts</strong><div><span>Student</span><code>student123 / student123</code></div><div><span>Teacher</span><code>teacher123 / teacher123</code></div></div></div></section></main>`;
-}
+  $('#app').innerHTML=`<main class="login-page"><section class="login-art"><div class="art-shape art-blue"></div><div class="art-shape art-yellow"></div><div class="art-dots">• • •<br>• • •</div><div class="art-copy"><span class="eyebrow">STUDY SMARTER. KNOW WHAT'S NEXT.</span><h1>Study Smarter.<br><em>Know What's Next.</em></h1><p>An adaptive learning platform that helps you understand your progress, identify what needs attention, and decide what to do next.</p></div><div class="poster-scene">${svgScene('login')}</div><div class="art-number">01</div></section><section class="login-panel"><div class="login-card"><div class="brand"><img class="brand-logo" src="assets/knownext-logo.png" alt="KnowNext logo"><span>KnowNext</span></div><div class="login-heading"><span class="eyebrow">WELCOME BACK</span><h2>Start where<br>you need to.</h2><p>Sign in to continue your learning journey.</p></div><form id="login-form" data-form="login"><label>Username<input id="login-user" autocomplete="username" placeholder="Enter username" required></label><label>Password<div class="password-wrap"><input id="login-pass" type="password" autocomplete="current-password" placeholder="Enter password" required><button type="button" id="toggle-pass" data-action="toggle-pass">Show</button></div></label><button class="primary-btn full" type="submit">Log in <span>→</span></button><div id="login-error" class="form-error" role="alert"></div></form>  <div class="demo-accounts"><strong>Demo Accounts</strong><div><span>Student</span><code>student123 / student123</code></div><div><span>Teacher</span><code>teacher123 / teacher123</code></div><div><span>Admin</span><code>admin123 / admin123</code></div><div><span>Superadmin</span><code>superadmin123 / superadmin123</code></div></div></div></section></main>`;}
 function handleLogin(){
   const username=$('#login-user').value.trim(), pass=$('#login-pass').value, u=DEMO_USERS[username];
   if(!username||!pass){ $('#login-error').textContent='Enter both your username and password.'; return; }
   if(!u||passwordFor(username)!==pass){ $('#login-error').textContent='Incorrect username or password. Try one of the demo accounts.'; return; }
-  currentUser=setSession(u); currentView='dashboard'; viewParams={};
+  currentUser=setSession(u); currentView=u.role==='student'||u.role==='teacher'?'dashboard':'overview'; viewParams={};
   renderApp();
 }
 function logout(){
@@ -232,15 +237,20 @@ function logout(){
 /* ---------- App shell ---------- */
 const STUDENT_NAV=[['dashboard','Dashboard','home'],['courses','My Courses','book'],['learning-path','Learning Path','path'],['study-plan','Study Plan','plan'],['virtual-class','Virtual Class','video'],['assessments','Assessments','check'],['assignments','Assignments','assignment'],['ai-tools','AI Study Tools','ai'],['progress','Progress','chart'],['calendar','Calendar','calendar'],['announcements','Announcements','bell'],['profile','Profile','user']];
 const TEACHER_NAV=[['dashboard','Dashboard','home'],['courses','My Courses','book'],['students','Students','people'],['assessments','Assessments','check'],['assignments','Assignments','assignment'],['analytics','Learning Analytics','analytics'],['virtual-class','Virtual Class','video'],['ai-tools','AI Teaching Tools','ai'],['announcements','Announcements','bell'],['calendar','Calendar','calendar'],['profile','Profile','user']];
-function navList(){ return isTeacher()?TEACHER_NAV:STUDENT_NAV; }
+const ADMIN_NAV=[['overview','Overview','home'],['students-teachers','Students and Teachers','people'],['subjects-courses','Subjects and Courses','book'],['sections-enrollment','Sections and Enrollment','chart'],['academic-calendar','Academic Calendar','calendar'],['virtual-classes','Virtual Classes','video'],['assignments-assessments','Assignments and Assessments','check'],['reports-analytics','Reports and Analytics','analytics'],['institution-announcements','Announcements','bell'],['institution-settings','Institution Settings','settings'],['profile','Profile','user']];
+const SUPERADMIN_NAV=[['overview','Overview','home'],['institution-management','Institution Management','building'],['administrator-management','Administrator Management','people'],['user-directory','User Directory','users'],['global-analytics','Global Analytics','chart'],['audit-logs','Audit Logs','file'],['announcements','Announcements','bell'],['platform-settings','Platform Settings','settings'],['profile','Profile','user']];
+function navList(){ if(isSuperadmin()) return SUPERADMIN_NAV; if(isAdmin()) return ADMIN_NAV; return isTeacher()?TEACHER_NAV:STUDENT_NAV; }
 function labelView(v){ if(v==='lesson') return `My Courses <span>/</span> ${esc(courseName(viewParams.courseId))}`; return navList().find(x=>x[0]===v)?.[1]||'Dashboard'; }
 
 function renderApp(){
   document.body.className='app-body';
-  const teacher=isTeacher(), u=user();
-  if(!currentView || (currentView!=='lesson' && !navList().some(n=>n[0]===currentView))) currentView='dashboard';
+  const u=user();
+  const role = roleLabel();
+  if(!currentView || (currentView!=='lesson' && !navList().some(n=>n[0]===currentView))) currentView=isSuperadmin()||isAdmin()?'overview':'dashboard';
   const activeNav=currentView==='lesson'?'courses':currentView;
-  $('#app').innerHTML=`<div class="app-shell"><aside class="sidebar"><div class="side-brand"><img class="brand-logo" src="assets/knownext-logo.png" alt="KnowNext logo"><span>KnowNext</span></div><button class="mobile-close" data-action="menu-close" aria-label="Close menu">×</button><div class="role-chip">${teacher?'TEACHER':'STUDENT'} MODE</div><nav>${navList().map(n=>`<button class="nav-item ${activeNav===n[0]?'active':''}" data-action="nav" data-view="${n[0]}" ${activeNav===n[0]?'aria-current="page"':''}>${icon(n[2])}<span>${n[1]}</span>${n[0]==='announcements'&&!teacher?'<b class="nav-dot" id="ann-dot"></b>':''}</button>`).join('')}</nav><div class="side-bottom"><button class="mini-user" data-action="nav" data-view="profile" title="Open profile"><div class="avatar">${initials(u.name)}</div><div><strong>${esc(u.name.replace(/^Prof\.\s*/i,''))}</strong><small>${teacher?'Faculty':esc(`${u.program} · ${u.year}`)}</small></div></button><button class="logout-btn" data-action="logout">Log out</button></div></aside><main class="main"><header class="topbar"><button class="menu-btn" data-action="menu-toggle" aria-label="Open menu">☰</button><div class="crumb">${teacher?'Teaching workspace':'Student workspace'} <span>/</span> ${labelView(currentView)}</div><div class="top-actions"><button class="icon-btn" title="Notifications" aria-label="Notifications" data-action="notifications">♢<i id="notify-dot"></i></button><button class="top-avatar" data-action="nav" data-view="profile" title="Profile" aria-label="Open profile">${initials(u.name)}</button></div></header><div id="content" class="content"></div></main></div>`;
+  const workspaceLabel = isSuperadmin() ? 'Platform workspace' : isAdmin() ? `${currentInstitution()?.name || 'Institution'} workspace` : isTeacher() ? 'Teaching workspace' : 'Student workspace';
+  const profileText = isSuperadmin() ? 'Platform administrator' : isAdmin() ? (currentInstitution()?.name || 'Institution admin') : isTeacher() ? 'Faculty' : `${u.program} · ${u.year}`;
+  $('#app').innerHTML=`<div class="app-shell"><aside class="sidebar"><div class="side-brand"><img class="brand-logo" src="assets/knownext-logo.png" alt="KnowNext logo"><span>KnowNext</span></div><button class="mobile-close" data-action="menu-close" aria-label="Close menu">×</button><div class="role-chip">${role} MODE</div><nav>${navList().map(n=>`<button class="nav-item ${activeNav===n[0]?'active':''}" data-action="nav" data-view="${n[0]}" ${activeNav===n[0]?'aria-current="page"':''}>${icon(n[2])}<span>${n[1]}</span>${n[0]==='announcements'&&!isTeacher()&&!isAdmin()&&!isSuperadmin()?'<b class="nav-dot" id="ann-dot"></b>':''}</button>`).join('')}</nav><div class="side-bottom"><button class="mini-user" data-action="nav" data-view="profile" title="Open profile"><div class="avatar">${initials(u.name)}</div><div><strong>${esc(u.name.replace(/^Prof\.\s*/i,''))}</strong><small>${esc(profileText)}</small></div></button><button class="logout-btn" data-action="logout">Log out</button></div></aside><main class="main"><header class="topbar"><button class="menu-btn" data-action="menu-toggle" aria-label="Open menu">☰</button><div class="crumb">${workspaceLabel} <span>/</span> ${labelView(currentView)}</div><div class="top-actions"><button class="icon-btn" title="Notifications" aria-label="Notifications" data-action="notifications">♢<i id="notify-dot"></i></button><button class="top-avatar" data-action="nav" data-view="profile" title="Profile" aria-label="Open profile">${initials(u.name)}</button></div></header><div id="content" class="content"></div></main></div>`;
   renderView();
 }
 function updateChrome(){
@@ -250,8 +260,41 @@ function updateChrome(){
 function renderView(){
   const c=$('#content'); if(!c) return;
   const teacher=isTeacher();
-  const map={dashboard:teacher?renderTeacherDashboard:renderStudentDashboard,courses:renderCourses,lesson:renderLesson,'learning-path':renderLearningPath,'study-plan':renderStudyPlan,assessments:renderAssessments,assignments:renderAssignments,'ai-tools':teacher?renderTeacherAI:renderStudentAI,progress:renderProgress,calendar:renderCalendar,'virtual-class':renderVirtualClass,announcements:renderAnnouncements,profile:renderProfile,students:renderStudents,analytics:renderAnalytics};
-  (map[currentView]||map.dashboard)(c);
+  const map={
+    dashboard: teacher ? renderTeacherDashboard : renderStudentDashboard,
+    overview: isSuperadmin() ? renderSuperadminOverview : isAdmin() ? renderAdminOverview : teacher ? renderTeacherDashboard : renderStudentDashboard,
+    'institution-management': renderInstitutionManagement,
+    'administrator-management': renderAdminManagement,
+    'user-directory': renderUserDirectory,
+    'global-analytics': renderGlobalAnalytics,
+    'audit-logs': renderAuditLogs,
+    announcements: renderAnnouncements,
+    'platform-settings': renderPlatformSettings,
+    'students-teachers': renderAdminStudentsTeachers,
+    'subjects-courses': renderAdminCourses,
+    'sections-enrollment': renderAdminSections,
+    'academic-calendar': renderAdminCalendar,
+    'virtual-classes': renderAdminVirtualClasses,
+    'assignments-assessments': renderAdminAssignments,
+    'reports-analytics': renderAdminReports,
+    'institution-announcements': renderInstitutionAnnouncements,
+    'institution-settings': renderInstitutionSettings,
+    courses: renderCourses,
+    lesson: renderLesson,
+    'learning-path': renderLearningPath,
+    'study-plan': renderStudyPlan,
+    assessments: renderAssessments,
+    assignments: renderAssignments,
+    'ai-tools': teacher ? renderTeacherAI : renderStudentAI,
+    progress: renderProgress,
+    calendar: renderCalendar,
+    'virtual-class': renderVirtualClass,
+    profile: renderProfile,
+    students: renderStudents,
+    analytics: renderAnalytics
+  };
+  const selected = map[currentView] || map[isSuperadmin() || isAdmin() ? 'overview' : 'dashboard'];
+  selected(c);
   updateChrome();
 }
 function navigateTo(view,params={}){
@@ -268,6 +311,162 @@ function progressBar(p){return `<div class="progress"><span style="width:${Math.
 function statusPill(score){return `<span class="status ${score<70?'danger':score<85?'warn':'good'}">${getStatus(score)}</span>`;}
 function tabs(group,items,active){ return `<div class="filter-tabs" role="tablist">${items.map(([k,l])=>`<button role="tab" class="${k===active?'active':''}" aria-selected="${k===active}" data-action="set-filter" data-group="${group}" data-value="${k}">${l}</button>`).join('')}</div>`; }
 function emptyState(title,text,action=''){ return `<div class="empty-state"><strong>${title}</strong><p>${text}</p>${action}</div>`; }
+
+function renderSuperadminOverview(c){
+  const institutionCount = state.institutions?.length || 0;
+  const adminCount = state.adminAccounts?.length || 0;
+  const teacherCount = 1;
+  const studentCount = STUDENTS.length;
+  const courseCount = state.courses.length;
+  const activeInstitutions = (state.institutions||[]).filter(x=>x.status==='active').length;
+  const recent = (state.auditLogs || []).slice(0,5);
+  c.innerHTML = pageTitle('SUPERADMIN DASHBOARD','Platform overview and governance','Monitor institutions, accounts, and activity across the network.') +
+    `<div class="stats-grid">${stat(String(institutionCount),'Total institutions','Across all campuses','blue')}${stat(String(adminCount),'Total administrators','Assigned to institutions','sky')}${stat(String(teacherCount),'Total teachers','Active faculty roster','yellow')}${stat(String(studentCount),'Total students','Across all institutions','navy')}${stat(String(courseCount),'Total courses','Live academic catalog','blue')}${stat(String(activeInstitutions),'Active institutions','Currently enabled','green')}</div>`+
+    `<section class="section"><div class="section-head"><div><span class="eyebrow">PLATFORM ACTIVITY</span><h2>Recent system activity</h2></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Record</th><th>Description</th></tr></thead><tbody>${recent.map(log=>`<tr><td>${esc(log.date)}</td><td>${esc(log.actor)}</td><td>${esc(log.action)}</td><td>${esc(log.record)}</td><td>${esc(log.description)}</td></tr>`).join('') || '<tr><td colspan="5">No activity yet.</td></tr>'}</tbody></table></div></section>`;
+}
+function renderInstitutionManagement(c){
+  const q = (ui.institutionQuery || '').toLowerCase();
+  const status = ui.institutionStatus || 'all';
+  const rows = (state.institutions||[]).filter(inst => (!q || `${inst.name} ${inst.code} ${inst.email}`.toLowerCase().includes(q)) && (status==='all' || inst.status===status));
+  c.innerHTML = pageTitle('INSTITUTION MANAGEMENT','Manage institution access and status','Search, create, and update platform institutions.') +
+    `<div class="toolbar"><input data-input="institution-query" value="${esc(ui.institutionQuery||'')}" placeholder="Search institutions"/> <select data-change="institution-status"><option value="all" ${status==='all'?'selected':''}>All status</option><option value="active" ${status==='active'?'selected':''}>Active</option><option value="inactive" ${status==='inactive'?'selected':''}>Inactive</option></select><button class="primary-btn" data-action="create-institution">+ Create institution</button></div>`+
+    `<div class="table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>Name</th><th>Code</th><th>Type</th><th>Assigned Admin</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows.map(inst=>`<tr><td>${esc(inst.id)}</td><td>${esc(inst.name)}</td><td>${esc(inst.code)}</td><td>${esc(inst.type)}</td><td>${esc(inst.assignedAdmin || 'Unassigned')}</td><td><span class="status ${inst.status==='active'?'good':'warn'}">${esc(inst.status)}</span></td><td><button class="text-btn" data-action="edit-institution" data-id="${inst.id}">Edit</button> <button class="text-btn" data-action="toggle-institution-status" data-id="${inst.id}">${inst.status==='active'?'Deactivate':'Activate'}</button> <button class="text-btn danger-text" data-action="delete-institution" data-id="${inst.id}">Delete</button></td></tr>`).join('') || '<tr><td colspan="7">No institutions match the current filters.</td></tr>'}</tbody></table></div>`;
+}
+function renderAdminManagement(c){
+  const q = (ui.adminQuery || '').toLowerCase();
+  const rows = (state.adminAccounts||[]).filter(a => (!q || `${a.name} ${a.email} ${a.username}`.toLowerCase().includes(q)));
+  c.innerHTML = pageTitle('ADMINISTRATOR MANAGEMENT','Manage admin accounts and assignments','Create admin roles and assign them to institutions.') +
+    `<div class="toolbar"><input data-input="admin-query" value="${esc(ui.adminQuery||'')}" placeholder="Search administrators"/><button class="primary-btn" data-action="create-admin">+ Create admin</button></div>` +
+    `<div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Username</th><th>Institution</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows.map(a=>`<tr><td>${esc(a.name)}</td><td>${esc(a.username)}</td><td>${esc((state.institutions||[]).find(i=>i.id===a.institutionId)?.name || 'Unassigned')}</td><td><span class="status ${a.status==='active'?'good':'warn'}">${esc(a.status)}</span></td><td><button class="text-btn" data-action="edit-admin" data-id="${a.id}">Edit</button> <button class="text-btn" data-action="toggle-admin-status" data-id="${a.id}">${a.status==='active'?'Suspend':'Activate'}</button></td></tr>`).join('') || '<tr><td colspan="5">No administrators found.</td></tr>'}</tbody></table></div>`;
+}
+function renderUserDirectory(c){
+  const q=(ui.userQuery||'').toLowerCase();
+  const roleFilter=ui.userRole || 'all';
+  const institutionFilter=ui.userInstitution || 'all';
+  const statusFilter=ui.userStatus || 'all';
+  const users=[...STUDENTS.map(s=>({id:`student-${s.id}`, role:'student', name:s.name, email:`student${s.id}@knownext.demo`, status:'active', institution:'Northfield Academy'})), ...Object.values(DEMO_USERS).filter(u=>['teacher','admin','superadmin'].includes(u.role)).map(u=>({id:`${u.role}-${u.username}`, role:u.role, name:u.name, email:u.email, status:'active', institution:u.role==='admin' ? (state.institutions?.find(i=>i.id===u.institutionId)?.name || 'Unassigned') : u.role==='superadmin' ? 'Platform' : 'Northfield Academy'}))];
+  const rows=users.filter(u => (!q || `${u.name} ${u.email}`.toLowerCase().includes(q)) && (roleFilter==='all'||u.role===roleFilter) && (institutionFilter==='all'||u.institution===institutionFilter) && (statusFilter==='all'||u.status===statusFilter));
+  c.innerHTML = pageTitle('GLOBAL USER DIRECTORY','View all institution activity and user records','Search across students, teachers, and administrators from a single platform view.') +
+    `<div class="toolbar"><input data-input="user-query" value="${esc(ui.userQuery||'')}" placeholder="Search by name or email"/><select data-change="user-role"><option value="all" ${roleFilter==='all'?'selected':''}>All roles</option><option value="student" ${roleFilter==='student'?'selected':''}>Student</option><option value="teacher" ${roleFilter==='teacher'?'selected':''}>Teacher</option><option value="admin" ${roleFilter==='admin'?'selected':''}>Admin</option><option value="superadmin" ${roleFilter==='superadmin'?'selected':''}>Superadmin</option></select><select data-change="user-status"><option value="all" ${statusFilter==='all'?'selected':''}>All status</option><option value="active" ${statusFilter==='active'?'selected':''}>Active</option><option value="inactive" ${statusFilter==='inactive'?'selected':''}>Inactive</option></select></div>`+
+    `<div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Role</th><th>Institution</th><th>Status</th></tr></thead><tbody>${rows.map(u=>`<tr><td>${esc(u.name)}<br><small>${esc(u.email)}</small></td><td>${esc(u.role)}</td><td>${esc(u.institution)}</td><td><span class="status ${u.status==='active'?'good':'warn'}">${esc(u.status)}</span></td></tr>`).join('') || '<tr><td colspan="4">No users match your search.</td></tr>'}</tbody></table></div>`;
+}
+function renderGlobalAnalytics(c){
+  const institutionCount = state.institutions.length; const totalEnrollments = STUDENTS.length; const completionRate = Math.round((STUDENTS.filter(s=>s.mastery>=80).length / Math.max(STUDENTS.length,1))*100); 
+  c.innerHTML = pageTitle('GLOBAL ANALYTICS','Platform-wide academic trends and institutional summary','Simulated metrics are clearly marked as demo data.') +
+    `<div class="stats-grid">${stat(String(institutionCount),'Users per institution','Platform snapshot','blue')}${stat(String(totalEnrollments),'Total enrollments','Across active cohorts','sky')}${stat(String(completionRate)+'%','Course completion','Demo metric','yellow')}${stat('18','Institution activity','Recent engagement','navy')}</div>`+
+    `<section class="section"><div class="section-head"><div><span class="eyebrow">SIMULATED METRICS</span><h2>Platform overview</h2></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Institution</th><th>Users</th><th>Engagement</th><th>Completion</th></tr></thead><tbody>${(state.institutions||[]).map(inst=>`<tr><td>${esc(inst.name)}</td><td>${Math.max(10, STUDENTS.length + (inst.id.length % 5))}</td><td>${Math.min(96, 65 + (inst.id.length % 20))}%</td><td>${Math.min(92, 70 + (inst.id.length % 15))}%</td></tr>`).join('')}</tbody></table></div></section>`;
+}
+function renderAuditLogs(c){
+  const rows = state.auditLogs || [];
+  c.innerHTML = pageTitle('AUDIT LOGS','Administrative history and compliance activity','No passwords or credentials are stored in audit records.') +
+    `<div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Actor</th><th>Action</th><th>Affected record</th><th>Description</th></tr></thead><tbody>${rows.map(log=>`<tr><td>${esc(log.date)}</td><td>${esc(log.actor)}</td><td>${esc(log.action)}</td><td>${esc(log.record)}</td><td>${esc(log.description)}</td></tr>`).join('') || '<tr><td colspan="5">No audit logs recorded yet.</td></tr>'}</tbody></table></div>`;
+}
+function renderPlatformAnnouncements(c){
+  const rows = state.platformAnnouncements || [];
+  c.innerHTML = pageTitle('ANNOUNCEMENTS','Global announcements and institutional communications','Create and update platform-wide notices without touching student or teacher workflows.') +
+    `<div class="toolbar"><button class="primary-btn" data-action="create-platform-announcement">+ Create announcement</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Title</th><th>Target</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows.map(item=>`<tr><td>${esc(item.title)}</td><td>${esc(item.target || 'all')}</td><td>${esc(item.status || 'Published')}</td><td><button class="text-btn" data-action="edit-platform-announcement" data-id="${item.id}">Edit</button> <button class="text-btn danger-text" data-action="delete-platform-announcement" data-id="${item.id}">Delete</button></td></tr>`).join('') || '<tr><td colspan="4">No platform announcements yet.</td></tr>'}</tbody></table></div>`;
+}
+function renderPlatformSettings(c){
+  const settings = state.platformSettings || DEFAULT_PLATFORM_SETTINGS;
+  c.innerHTML = pageTitle('PLATFORM SETTINGS','Default platform preferences and access controls','Client-side demo settings are stored in localStorage for this prototype.') +
+    `<section class="section"><form id="platform-settings-form"><label>Platform name<input id="platform-name" value="${esc(settings.platformName||'KnowNext')}"></label><label>Tagline<input id="platform-tagline" value="${esc(settings.platformTagline||'Study Smarter. Know What’s Next.')}"></label><label>Default academic year<input id="platform-year" value="${esc(settings.defaultPreferences?.academicYear || '2025-2026')}"></label><label>Default notification settings<select id="platform-notify"><option value="enabled" ${settings.notificationSettings?.inApp?'selected':''}>Enabled</option><option value="disabled" ${!settings.notificationSettings?.inApp?'selected':''}>Disabled</option></select></label><button class="primary-btn" type="button" data-action="save-platform-settings">Save settings</button></form></section>`;
+}
+function showInstitutionForm(id){
+  const institution = (state.institutions||[]).find(x=>x.id===id) || null;
+  showModal(institution ? 'Edit institution' : 'Create institution', `<label>Institution name<input id="institution-name" value="${esc(institution?.name||'')}"></label><label>Institution code<input id="institution-code" value="${esc(institution?.code||'')}"></label><label>Institution type<input id="institution-type" value="${esc(institution?.type||'')}"></label><label>Address<input id="institution-address" value="${esc(institution?.address||'')}"></label><label>Contact email<input id="institution-email" type="email" value="${esc(institution?.email||'')}"></label><label>Contact number<input id="institution-phone" value="${esc(institution?.contact||'')}"></label><label>Assigned admin<select id="institution-admin">${['<option value="">Unassigned</option>', ...(state.adminAccounts||[]).map(a=>`<option value="${a.username}" ${a.username===institution?.assignedAdmin?'selected':''}>${esc(a.name)}</option>`)].join('')}</select></label><label>Status<select id="institution-status-field"><option value="active" ${institution?.status==='active'?'selected':''}>Active</option><option value="inactive" ${institution?.status==='inactive'?'selected':''}>Inactive</option></select></label>`, `<button class="ghost-btn" data-close>Cancel</button><button class="primary-btn" data-action="save-institution" data-id="${id||''}">${institution ? 'Save changes' : 'Create institution'}</button>`);
+}
+function saveInstitution(id){
+  const name=val('institution-name'); const code=val('institution-code'); const type=val('institution-type'); const address=val('institution-address'); const email=val('institution-email'); const phone=val('institution-phone'); const admin=val('institution-admin'); const status=val('institution-status-field');
+  if(name.length<3) return fail('Institution name must be at least 3 characters.','institution-name');
+  if(!validEmail(email)) return fail('Enter a valid contact email.','institution-email');
+  if(id){ const inst=(state.institutions||[]).find(x=>x.id===id); if(inst){ Object.assign(inst,{name,code,type,address,email,contact:phone,assignedAdmin:admin,status}); recordAuditLog('Institution Updated', name, 'Institution profile updated by superadmin.', currentUser.username); } }
+  else{ const item={id:uid('inst'), name, code, type, address, email, contact:phone, assignedAdmin:admin, status, createdAt:todayISO()}; (state.institutions||[]).push(item); recordAuditLog('Institution Created', name, 'New institution added to the platform.', currentUser.username); }
+  saveState(); closeModal(); renderInstitutionManagement($('#content')); toast(id ? 'Institution updated.' : 'Institution created.');
+}
+function showAdminForm(id){
+  const row = (state.adminAccounts||[]).find(x=>x.id===id) || null;
+  showModal(row ? 'Edit admin account' : 'Create admin account', `<label>Full name<input id="admin-name" value="${esc(row?.name||'')}"></label><label>Username<input id="admin-username" value="${esc(row?.username||'')}"></label><label>Email<input id="admin-email" type="email" value="${esc(row?.email||'')}"></label><label>Assigned institution<select id="admin-institution">${['<option value="">Unassigned</option>', ...(state.institutions||[]).map(inst=>`<option value="${inst.id}" ${inst.id===row?.institutionId?'selected':''}>${esc(inst.name)}</option>`)].join('')}</select></label><label>Status<select id="admin-status"><option value="active" ${row?.status==='active'?'selected':''}>Active</option><option value="inactive" ${row?.status==='inactive'?'selected':''}>Inactive</option></select></label>`, `<button class="ghost-btn" data-close>Cancel</button><button class="primary-btn" data-action="save-admin" data-id="${id||''}">${row ? 'Save changes' : 'Create admin'}</button>`);
+}
+function saveAdminAccount(id){
+  const name=val('admin-name'); const username=val('admin-username'); const email=val('admin-email'); const institutionId=val('admin-institution'); const status=val('admin-status');
+  if(name.length<3) return fail('Admin name must be at least 3 characters.','admin-name');
+  if(!validEmail(email)) return fail('Enter a valid admin email.','admin-email');
+  if(!institutionId) return fail('Assign the admin to an existing institution before saving.','admin-institution');
+  if(id){ const row=(state.adminAccounts||[]).find(x=>x.id===id); if(row){ Object.assign(row,{name,username,email,institutionId,status}); const inst = (state.institutions||[]).find(x=>x.id===institutionId); if(inst) inst.assignedAdmin = username; recordAuditLog('Admin Updated', username, 'Admin account changed by superadmin.', currentUser.username); } }
+  else{ const item={id:uid('admin'), username: username || `admin-${Date.now().toString(36)}`.slice(0,8), name, email, institutionId, status, role:'admin', createdAt:todayISO()}; (state.adminAccounts||[]).push(item); const inst = (state.institutions||[]).find(x=>x.id===institutionId); if(inst) inst.assignedAdmin = item.username; recordAuditLog('Admin Created', item.username, 'New admin account created and assigned to an institution.', currentUser.username); }
+  saveState(); closeModal(); renderAdminManagement($('#content')); toast(id ? 'Admin account updated.' : 'Admin account created.');
+}
+function showPlatformAnnouncementModal(id){
+  const item = (state.platformAnnouncements||[]).find(x=>x.id===id) || null;
+  showModal(item ? 'Edit announcement' : 'Create announcement', `<label>Title<input id="platform-ann-title" value="${esc(item?.title||'')}"></label><label>Target<select id="platform-ann-target"><option value="all" ${item?.target==='all'?'selected':''}>All institutions</option><option value="selected" ${item?.target==='selected'?'selected':''}>Selected institution</option></select></label><label>Body<textarea id="platform-ann-body">${esc(item?.body||'')}</textarea></label>`, `<button class="ghost-btn" data-close>Cancel</button><button class="primary-btn" data-action="save-platform-announcement" data-id="${id||''}">${item ? 'Save changes' : 'Publish'}</button>`);
+}
+function savePlatformAnnouncement(id){
+  const title = val('platform-ann-title'); const body = val('platform-ann-body'); const target = val('platform-ann-target') || 'all';
+  if(title.length<3) return fail('Title must be at least 3 characters.','platform-ann-title');
+  if(body.length<10) return fail('Announcement body must be at least 10 characters.','platform-ann-body');
+  if(id){ const item=(state.platformAnnouncements||[]).find(x=>x.id===id); if(item){ Object.assign(item,{title, body, target, status:'Published'}); recordAuditLog('Announcement Updated', title, 'Platform announcement updated.', currentUser.username); } }
+  else{ (state.platformAnnouncements||[]).unshift({id:uid('plat-ann'), title, body, target, institutionId:'', createdAt:todayISO(), published:true, status:'Published'}); recordAuditLog('Announcement Published', title, 'Platform announcement published.', currentUser.username); }
+  saveState(); closeModal(); renderPlatformAnnouncements($('#content')); toast('Announcement saved.');
+}
+
+function renderAdminOverview(c){
+  const institution = currentInstitution();
+  const studentCount = STUDENTS.length;
+  const teacherCount = 1;
+  const courseCount = state.courses.length;
+  const sectionCount = Math.max(4, state.classes.length);
+  const upcomingCount = upcomingClasses().length;
+  const activity = Math.round((state.classes.length + state.assignments.length) / 2);
+  c.innerHTML = pageTitle('ADMIN DASHBOARD', institution ? `${institution.name} operations` : 'Assigned institution overview', 'Monitor your institution, staffing, enrollment, and academic activity.') +
+    `<div class="stats-grid">${stat(String(studentCount),'Total students','Across assigned programs','blue')}${stat(String(teacherCount),'Total teachers','Faculty roster','sky')}${stat(String(courseCount),'Total courses','Available to students','yellow')}${stat(String(sectionCount),'Total sections','Placement summary','navy')}${stat(String(upcomingCount),'Upcoming classes','Scheduled activity','blue')}${stat(String(activity),'Academic activity','Institution health','green')}</div>`+
+    `<section class="section"><div class="section-head"><div><span class="eyebrow">INSTITUTION STATUS</span><h2>Operational snapshot</h2></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Metric</th><th>Value</th><th>Notes</th></tr></thead><tbody><tr><td>Institution</td><td>${esc(institution?.name || 'Unassigned')}</td><td>Primary academic organization</td></tr><tr><td>Academic year</td><td>${esc((state.platformSettings||DEFAULT_PLATFORM_SETTINGS).defaultPreferences.academicYear || '2025-2026')}</td><td>Default value from platform settings</td></tr><tr><td>Classes scheduled</td><td>${state.classes.length}</td><td>Live credentialed sessions</td></tr></tbody></table></div></section>`;
+}
+function renderAdminStudentsTeachers(c){
+  const institution = currentInstitution();
+  const rows = [
+    ...STUDENTS.map(s=>({name:s.name, role:'Student', email:`student${s.id}@knownext.demo`, institution: institution?.name || 'Northfield Academy', status:'active'})),
+    {name:'Prof. Maria Santos', role:'Teacher', email:'maria.santos@knownext.demo', institution: institution?.name || 'Northfield Academy', status:'active'}
+  ];
+  c.innerHTML = pageTitle('STUDENTS AND TEACHERS', 'Manage institution members', 'Create new staff and student profiles, assign them to sections, and monitor account status.') +
+    `<div class="toolbar"><button class="primary-btn" data-action="create-institution-user">+ Create account</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Institution</th><th>Status</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.role)}</td><td>${esc(r.email)}</td><td>${esc(r.institution)}</td><td><span class="status good">${esc(r.status)}</span></td></tr>`).join('')}</tbody></table></div>`;
+}
+function renderAdminCourses(c){
+  c.innerHTML = pageTitle('SUBJECTS AND COURSES', 'Institution course catalog', 'Curate subjects, assign teachers, and manage learning pathways for your institution.') +
+    `<div class="toolbar"><button class="primary-btn" data-action="create-institution-course">+ Create course</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Course</th><th>Instructor</th><th>Grade level</th><th>Actions</th></tr></thead><tbody>${state.courses.map(course=>`<tr><td>${esc(course.name)}</td><td>${esc(course.instructor)}</td><td>Grade 12</td><td><button class="text-btn" data-action="edit-course" data-course="${course.id}">Edit</button> <button class="text-btn danger-text" data-action="delete-course" data-course="${course.id}">Delete</button></td></tr>`).join('')}</tbody></table></div>`;
+}
+function renderAdminSections(c){
+  const rows = state.classes || [];
+  c.innerHTML = pageTitle('SECTIONS AND ENROLLMENT', 'Enrollment and section assignment overview', 'Monitor section allocation and student placement.') +
+    `<div class="table-wrap"><table class="data-table"><thead><tr><th>Section</th><th>Teacher</th><th>Students</th><th>Actions</th></tr></thead><tbody>${rows.map(item=>`<tr><td>${esc(item.title)}</td><td>${esc(item.host)}</td><td>${Math.max(10, item.id.length % 15 + 10)}</td><td><button class="text-btn" data-action="edit-class" data-id="${item.id}">Edit</button></td></tr>`).join('')}</tbody></table></div>`;
+}
+function renderAdminCalendar(c){
+  const upcoming = (state.classes || []).slice(0,6);
+  c.innerHTML = pageTitle('ACADEMIC CALENDAR', 'Institution academic timeline', 'Track events, deadlines, and upcoming academic activities.') +
+    `<div class="toolbar"><button class="primary-btn" data-action="schedule-class">+ Add event</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Event</th><th>Type</th></tr></thead><tbody>${upcoming.map(item=>`<tr><td>${esc(item.date)}</td><td>${esc(item.title)}</td><td>Class schedule</td></tr>`).join('')}</tbody></table></div>`;
+}
+function renderAdminVirtualClasses(c){
+  const rows = state.classes || [];
+  c.innerHTML = pageTitle('VIRTUAL CLASSES', 'Institution class schedule', 'Review scheduled classes, verify links, and monitor attendance details.') +
+    `<div class="table-wrap"><table class="data-table"><thead><tr><th>Class</th><th>Teacher</th><th>Meeting link</th></tr></thead><tbody>${rows.map(item=>`<tr><td>${esc(item.title)}</td><td>${esc(item.host)}</td><td>${esc(item.link || 'Missing meeting link')}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function renderAdminAssignments(c){
+  c.innerHTML = pageTitle('ASSIGNMENTS AND ASSESSMENTS', 'Institution assessment overview', 'Keep track of assignment and assessment visibility while teachers retain grading ownership.') +
+    `<div class="table-wrap"><table class="data-table"><thead><tr><th>Assessment</th><th>Course</th><th>Completion</th></tr></thead><tbody>${state.assignments.map(a=>`<tr><td>${esc(a.title)}</td><td>${esc(courseName(a.courseId))}</td><td>${Math.max(30, 75 - (a.id.length % 20))}%</td></tr>`).join('')}</tbody></table></div>`;
+}
+function renderAdminReports(c){
+  c.innerHTML = pageTitle('REPORTS AND ANALYTICS', 'Institution performance reports', 'Generate filtered views for enrollment status, student progress, and course completion.') +
+    `<div class="toolbar"><select><option>Enrollment</option><option>Student progress</option><option>Course completion</option><option>Assessment performance</option></select></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Course</th><th>Students</th><th>Completion</th><th>Trend</th></tr></thead><tbody>${state.courses.map(course=>`<tr><td>${esc(course.name)}</td><td>${STUDENTS.length}</td><td>${Math.max(52, 82 - course.id.length % 12)}%</td><td>Stable</td></tr>`).join('')}</tbody></table></div>`;
+}
+function renderInstitutionAnnouncements(c){
+  const rows = state.announcements || [];
+  c.innerHTML = pageTitle('ANNOUNCEMENTS','Institution announcements','Publish updates that only affect the assigned institution.') +
+    `<div class="toolbar"><button class="primary-btn" data-action="add-ann">+ Create announcement</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Title</th><th>Course</th><th>Date</th></tr></thead><tbody>${rows.map(item=>`<tr><td>${esc(item.title)}</td><td>${esc(courseName(item.courseId))}</td><td>${esc(item.date || todayISO())}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function renderInstitutionSettings(c){
+  const institution = currentInstitution();
+  c.innerHTML = pageTitle('INSTITUTION SETTINGS','Update your institution profile and operational preferences','Only institution-specific settings are editable in this view.') +
+    `<section class="section"><form><label>Institution name<input value="${esc(institution?.name || 'Northfield Academy')}"></label><label>Academic year<input value="2025-2026"></label><label>Semester dates<input value="Aug 1 – Dec 15"></label><button class="primary-btn" type="button" data-action="save-institution-settings">Save institution settings</button></form></section>`;
+}
 
 /* ---------- Student dashboard ---------- */
 function renderStudentDashboard(c){
@@ -857,21 +1056,22 @@ function publishAnnouncement(id){
 /* ---------- Profile & settings ---------- */
 function field(k,v){return `<div><span>${k}</span><strong>${esc(v)}</strong></div>`;}
 function renderProfile(c){
-  const t=isTeacher(), u=user();
+  const t=isTeacher(), a=isAdmin(), s=isSuperadmin(), u=user();
   const taught=state.courses.filter(x=>x.instructor===u.name).map(x=>x.name);
-  c.innerHTML=pageTitle('PROFILE','Your account','Manage your basic profile information and session.')+`<div class="profile-layout"><section class="profile-card"><div class="profile-cover"><div class="profile-avatar">${initials(u.name)}</div></div><div class="profile-body"><h2>${esc(u.name)}</h2><p>${esc(u.email)}</p><div class="profile-fields">${t?field('Department',u.department)+field('Role','Faculty')+field('Courses',taught.join(' · ')||'None assigned'):field('Program',u.program)+field('Year Level',u.year)+field('Courses',state.courses.map(x=>x.name).join(' · ')||'None')}</div><button class="primary-btn" data-action="edit-profile">Edit Profile</button></div></section><section class="settings-card"><span class="eyebrow">ACCOUNT</span><h2>Settings</h2><button class="setting-row" data-action="notification-settings"><span>Notifications</span><b>›</b></button><button class="setting-row" data-action="change-password"><span>Change password</span><b>›</b></button><button class="setting-row" data-action="privacy"><span>Privacy & data</span><b>›</b></button><button class="setting-row danger-text" data-action="logout"><span>Log out</span><b>›</b></button></section></div>`;
+  const details = s ? [field('Role','Superadmin'), field('Access','Platform-wide management'), field('Institution scope','All institutions')] : a ? [field('Role','Admin'), field('Assigned institution', currentInstitution()?.name || 'Unassigned'), field('Department', u.department || 'Academic Administration')] : t ? [field('Department',u.department), field('Role','Faculty'), field('Courses',taught.join(' · ')||'None assigned')] : [field('Program',u.program), field('Year Level',u.year), field('Courses',state.courses.map(x=>x.name).join(' · ')||'None')];
+  c.innerHTML=pageTitle('PROFILE','Your account','Manage your basic profile information and session.')+`<div class="profile-layout"><section class="profile-card"><div class="profile-cover"><div class="profile-avatar">${initials(u.name)}</div></div><div class="profile-body"><h2>${esc(u.name)}</h2><p>${esc(u.email)}</p><div class="profile-fields">${details.join('')}</div><button class="primary-btn" data-action="edit-profile">Edit Profile</button></div></section><section class="settings-card"><span class="eyebrow">ACCOUNT</span><h2>Settings</h2><button class="setting-row" data-action="notification-settings"><span>Notifications</span><b>›</b></button><button class="setting-row" data-action="change-password"><span>Change password</span><b>›</b></button><button class="setting-row" data-action="privacy"><span>Privacy & data</span><b>›</b></button><button class="setting-row danger-text" data-action="logout"><span>Log out</span><b>›</b></button></section></div>`;
 }
 function showProfileForm(){
-  const u=user(), t=isTeacher();
-  showModal('Edit profile',`<label>Display name<input id="profile-name" maxlength="60" value="${esc(u.name)}"></label><label>Email<input id="profile-email" type="email" maxlength="80" value="${esc(u.email)}"></label>${t?`<label>Department<input id="profile-department" maxlength="60" value="${esc(u.department)}"></label>`:`<div class="two-input"><label>Program<input id="profile-program" maxlength="60" value="${esc(u.program)}"></label><label>Year level<input id="profile-year" maxlength="30" value="${esc(u.year)}"></label></div>`}`,
+  const u=user(), t=isTeacher(), a=isAdmin(), s=isSuperadmin();
+  showModal('Edit profile',`<label>Display name<input id="profile-name" maxlength="60" value="${esc(u.name)}"></label><label>Email<input id="profile-email" type="email" maxlength="80" value="${esc(u.email)}"></label>${t?`<label>Department<input id="profile-department" maxlength="60" value="${esc(u.department)}"></label>`:a||s?`<label>Department<input id="profile-department" maxlength="60" value="${esc(u.department || 'Platform Administration')}"></label>`:`<div class="two-input"><label>Program<input id="profile-program" maxlength="60" value="${esc(u.program)}"></label><label>Year level<input id="profile-year" maxlength="30" value="${esc(u.year)}"></label></div>`}`,
   '<button class="ghost-btn" data-close>Cancel</button><button class="primary-btn" data-action="save-profile">Save changes</button>');
 }
 function saveProfile(){
-  const t=isTeacher(), name=val('profile-name'), email=val('profile-email');
+  const t=isTeacher(), a=isAdmin(), s=isSuperadmin(), name=val('profile-name'), email=val('profile-email');
   if(name.length<2) return fail('Name must be at least 2 characters.','profile-name');
   if(!validEmail(email)) return fail('Enter a valid email address.','profile-email');
   const data={name,email};
-  if(t){ data.department=val('profile-department'); if(data.department.length<2) return fail('Enter your department.','profile-department'); }
+  if(t || a || s){ data.department=val('profile-department'); if(data.department.length<2) return fail('Enter your department or division.','profile-department'); }
   else{ data.program=val('profile-program'); data.year=val('profile-year'); if(data.program.length<2) return fail('Enter your program.','profile-program'); if(!data.year) return fail('Enter your year level.','profile-year'); }
   const oldName=user().name;
   if(t && oldName!==name){ state.courses.forEach(c=>{ if(c.instructor===oldName) c.instructor=name; }); state.classes.forEach(c=>{ if(c.host===oldName) c.host=name; }); state.tasks.forEach(x=>{ if(x.assignedBy===oldName) x.assignedBy=name; }); }
@@ -1011,6 +1211,23 @@ const ACTIONS={
   notifications:()=>showNotifications(),
   'open-notification':el=>{ const n=state.notifications.find(x=>x.id===el.dataset.id); if(!n) return; n.read=true; saveState(); navigateTo(n.view); },
   'mark-all-notifications':()=>{ myNotifications().forEach(n=>n.read=true); saveState(); updateChrome(); showNotifications(); toast('All notifications marked as read.'); },
+  'create-institution':()=>showInstitutionForm(),
+  'edit-institution':el=>showInstitutionForm(el.dataset.id),
+  'save-institution':el=>saveInstitution(el.dataset.id||null),
+  'toggle-institution-status':el=>{ const inst=(state.institutions||[]).find(x=>x.id===el.dataset.id); if(!inst) return; inst.status=inst.status==='active'?'inactive':'active'; recordAuditLog('Institution Status Changed', inst.name, `Institution status changed to ${inst.status}.`, currentUser.username); saveState(); renderInstitutionManagement($('#content')); toast(`Institution ${inst.status}.`); },
+  'delete-institution':el=>{ const inst=(state.institutions||[]).find(x=>x.id===el.dataset.id); if(!inst) return; confirmDialog('Delete institution?',`<strong>${esc(inst.name)}</strong> will be removed from the platform demo data.`, 'Delete institution',()=>{ state.institutions=state.institutions.filter(x=>x.id!==inst.id); recordAuditLog('Institution Deleted', inst.name, 'Institution removed by superadmin.', currentUser.username); saveState(); renderInstitutionManagement($('#content')); toast('Institution deleted.'); }); },
+  'create-admin':()=>showAdminForm(),
+  'edit-admin':el=>showAdminForm(el.dataset.id),
+  'save-admin':el=>saveAdminAccount(el.dataset.id||null),
+  'toggle-admin-status':el=>{ const row=(state.adminAccounts||[]).find(x=>x.id===el.dataset.id); if(!row) return; row.status=row.status==='active'?'inactive':'active'; recordAuditLog('Admin Status Changed', row.username, `Admin account status changed to ${row.status}.`, currentUser.username); saveState(); renderAdminManagement($('#content')); toast(`Admin status set to ${row.status}.`); },
+  'create-platform-announcement':()=>showPlatformAnnouncementModal(),
+  'edit-platform-announcement':el=>showPlatformAnnouncementModal(el.dataset.id),
+  'delete-platform-announcement':el=>{ const item=(state.platformAnnouncements||[]).find(x=>x.id===el.dataset.id); if(!item) return; confirmDialog('Delete announcement?',`<strong>${esc(item.title)}</strong> will be removed from the platform feed.`, 'Delete announcement',()=>{ state.platformAnnouncements=(state.platformAnnouncements||[]).filter(x=>x.id!==item.id); recordAuditLog('Announcement Deleted', item.title, 'Announcement removed by superadmin.', currentUser.username); saveState(); renderPlatformAnnouncements($('#content')); toast('Platform announcement deleted.'); }); },
+  'save-platform-announcement':el=>savePlatformAnnouncement(el.dataset.id||null),
+  'save-platform-settings':()=>{ const settings = state.platformSettings || {}; settings.platformName = val('platform-name') || 'KnowNext'; settings.platformTagline = val('platform-tagline') || 'Study Smarter. Know What’s Next.'; settings.defaultPreferences = {...(settings.defaultPreferences||{}), academicYear: val('platform-year') || '2025-2026'}; settings.notificationSettings = {...(settings.notificationSettings||{}), inApp: $('#platform-notify').value !== 'disabled'}; state.platformSettings = settings; recordAuditLog('Platform Settings Updated', settings.platformName, 'Platform branding and defaults updated.', currentUser.username); saveState(); renderPlatformSettings($('#content')); toast('Platform settings saved.'); },
+  'save-institution-settings':()=>{ const institution = currentInstitution(); if(!institution) return toast('No institution assigned.'); institution.name = val('institution-name'); institution.academicYear = '2025-2026'; saveState(); toast('Institution settings saved.'); renderInstitutionSettings($('#content')); },
+  'create-institution-user':()=>toast('Institution account creation is available in this prototype demo flow.'),
+  'create-institution-course':()=>showCourseForm(),
   'confirm-yes':()=>{ const fn=pendingConfirm; pendingConfirm=null; fn?.(); },
   'set-filter':el=>{
     const g=el.dataset.group, v=el.dataset.value;
@@ -1127,6 +1344,9 @@ document.addEventListener('input',e=>{
   const k=e.target.dataset.input;
   if(k==='course-search'){ ui.courseQuery=e.target.value; renderCourseGrid(); }
   if(k==='student-search'){ ui.studentQuery=e.target.value; renderStudentRows(); }
+  if(k==='institution-query'){ ui.institutionQuery=e.target.value; renderInstitutionManagement($('#content')); }
+  if(k==='admin-query'){ ui.adminQuery=e.target.value; renderAdminManagement($('#content')); }
+  if(k==='user-query'){ ui.userQuery=e.target.value; renderUserDirectory($('#content')); }
   if(e.target.classList.contains('invalid')) e.target.classList.remove('invalid');
 });
 document.addEventListener('change',e=>{
@@ -1134,6 +1354,9 @@ document.addEventListener('change',e=>{
   if(k==='student-filter'){ ui.studentFilter=e.target.value; renderStudentRows(); }
   if(k==='task-subject'){ ui.taskSubject=e.target.value; refresh(); }
   if(k==='task-sort'){ ui.taskSort=e.target.value; refresh(); }
+  if(k==='institution-status'){ ui.institutionStatus=e.target.value; renderInstitutionManagement($('#content')); }
+  if(k==='user-role'){ ui.userRole=e.target.value; renderUserDirectory($('#content')); }
+  if(k==='user-status'){ ui.userStatus=e.target.value; renderUserDirectory($('#content')); }
   if(k==='setting'){ const u=currentUser.username; state.settings[u]={...settingsFor(u),[e.target.dataset.key]:e.target.checked}; saveState(); toast('Notification setting saved.'); }
 });
 document.addEventListener('keydown',e=>{

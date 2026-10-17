@@ -8,6 +8,30 @@ const PROGRESS_KEY = 'knownext_demo_progress';
 const VIEW_KEY = 'knownext_view';
 const STORE_VERSION = 2;
 const DEMO_STUDENT_ID = 1;
+const DEFAULT_PLATFORM_SETTINGS = {
+  platformName:'KnowNext',
+  platformTagline:'Study Smarter. Know What’s Next.',
+  defaultPreferences:{ language:'English', timezone:'UTC+8', academicYear:'2025-2026' },
+  notificationSettings:{ email:true, inApp:true, announcements:true },
+  availableFeatures:{ institutionManagement:true, adminManagement:true, analytics:true, globalAnnouncements:true },
+  defaultPermissions:{ student:true, teacher:true, admin:{ createStudents:true, manageCourses:true, syncSections:true }, superadmin:{ manageInstitutions:true, manageAdmins:true, manageSettings:true } }
+};
+const DEFAULT_INSTITUTIONS = [
+  {id:'inst-northfield', name:'Northfield Academy', code:'NFA', type:'Private School', address:'128 Park Avenue, Cebu City', email:'admin@northfield.edu', contact:'(032) 555-0101', assignedAdmin:'admin123', status:'active', createdAt:offsetISO(-180)},
+  {id:'inst-southview', name:'Southview Learning Center', code:'SVL', type:'STEM School', address:'22 Eastwood Road, Davao City', email:'info@southview.edu', contact:'(082) 555-0122', assignedAdmin:'', status:'active', createdAt:offsetISO(-100)},
+  {id:'inst-lakeside', name:'Lakeside International School', code:'LIS', type:'International School', address:'9 Lakeview Drive, Manila', email:'hello@lakeside.edu', contact:'(02) 555-0144', assignedAdmin:'', status:'inactive', createdAt:offsetISO(-60)}
+];
+const DEFAULT_ADMIN_ACCOUNTS = [
+  {id:'admin-001', username:'admin123', name:'Elena Ramos', email:'elena.ramos@knownext.demo', institutionId:'inst-northfield', status:'active', role:'admin', createdAt:offsetISO(-150)}
+];
+const DEFAULT_AUDIT_LOGS = [
+  {id:'audit-001', date:offsetISO(-1), actor:'superadmin123', action:'Institution Created', record:'Northfield Academy', description:'Initial institution record created for the default admin account.'},
+  {id:'audit-002', date:offsetISO(-2), actor:'admin123', action:'Course Updated', record:'General Mathematics', description:'Course details and materials refreshed for the academic term.'}
+];
+const DEFAULT_PLATFORM_ANNOUNCEMENTS = [
+  {id:'plat-ann-1', title:'Platform maintenance window', body:'Scheduled maintenance will occur on Saturday from 2:00 AM to 4:00 AM.', target:'all', institutionId:'', createdAt:offsetISO(-3), published:true, status:'Published'},
+  {id:'plat-ann-2', title:'Academic year kickoff', body:'A new academic year has started across all institutions. Please review the institutional updates.', target:'all', institutionId:'', createdAt:offsetISO(-8), published:true, status:'Published'}
+];
 
 /* ---------- Dates & ids ---------- */
 function isoDate(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
@@ -75,6 +99,12 @@ function seedState(){
     attempts,
     assessmentDrafts: {},
     announcements: ANNOUNCEMENTS.map(a=>({id:a.id,title:a.title,body:a.body,courseId:a.courseId,date:offsetISO(a.dateOffset)})),
+    platformAnnouncements: DEFAULT_PLATFORM_ANNOUNCEMENTS.map(a=>({...a, createdAt:a.createdAt||todayISO()})),
+    institutions: DEFAULT_INSTITUTIONS.map(i=>({...i, status:i.status||'active'})),
+    adminAccounts: DEFAULT_ADMIN_ACCOUNTS.map(a=>({...a, status:a.status||'active'})),
+    auditLogs: DEFAULT_AUDIT_LOGS,
+    platformSettings: DEFAULT_PLATFORM_SETTINGS,
+    institutionSettings: {},
     annRead: [],
     notifications: SEED_NOTIFICATIONS.map((n,i)=>({id:`ntf-seed-${i}`,role:n.role,title:n.title,meta:n.meta,view:n.view,date:offsetISO(n.dateOffset),read:false})),
     activity: SEED_ACTIVITY.map(a=>({text:a.text,icon:a.icon,date:offsetISO(a.dateOffset)})),

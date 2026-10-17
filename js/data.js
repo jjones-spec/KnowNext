@@ -4,7 +4,9 @@
    "Offset" are days relative to the day the demo data is first created. */
 const DEMO_USERS = {
   student123: { username:'student123', password:'student123', role:'student', name:'Alex Cruz', email:'alex.cruz@knownext.demo', program:'Senior High School', year:'Grade 12', studentId:1 },
-  teacher123: { username:'teacher123', password:'teacher123', role:'teacher', name:'Prof. Maria Santos', email:'maria.santos@knownext.demo', department:'Senior High School' }
+  teacher123: { username:'teacher123', password:'teacher123', role:'teacher', name:'Prof. Maria Santos', email:'maria.santos@knownext.demo', department:'Senior High School' },
+  admin123: { username:'admin123', password:'admin123', role:'admin', name:'Elena Ramos', email:'elena.ramos@knownext.demo', institutionId:'inst-northfield', department:'Academic Affairs' },
+  superadmin123: { username:'superadmin123', password:'superadmin123', role:'superadmin', name:'Ariana Dela Cruz', email:'ariana@knownext.demo', department:'Platform Operations' }
 };
 
 /* Mastery topics, one per seed course (same id as the course). Scores are randomized once and can be reshuffled. */

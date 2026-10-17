@@ -870,6 +870,22 @@ button:disabled,button[disabled]{opacity:.5;cursor:not-allowed;transform:none!im
 .answer-reveal{display:block;margin-top:6px;font-weight:800;color:var(--green)}
 .question .text-btn{margin-top:4px}
 
+/* Admin and Superadmin tables */
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 18px}
+.toolbar input,.toolbar select{min-height:44px;border:1px solid var(--line);border-radius:12px;padding:0 12px;background:#fff;color:var(--text)}
+.toolbar input{flex:1 1 220px;max-width:320px}
+.toolbar select{min-width:180px}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:16px;background:#fff}
+.data-table{width:100%;border-collapse:collapse}
+.data-table th,.data-table td{padding:14px 16px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.data-table th{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);background:#F8FAFC}
+.data-table tbody tr:hover{background:#F9FBFF}
+.data-table td small{display:block;color:var(--muted);margin-top:4px}
+.status{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:.02em}
+.status.good{background:#E8F8EF;color:#116A4F}
+.status.warn{background:#FFF2D9;color:#9A6500}
+.status.danger{background:#FFE8E8;color:#A63232}
+
 @media(max-width:1100px){.lesson-layout{grid-template-columns:1fr}.lesson-outline{position:static}}
 @media(max-width:800px){
   .toolbar-group{margin-top:10px}
