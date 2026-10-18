@@ -111,6 +111,8 @@ function seedState(){
     profiles: {},
     credentials: {},
     settings: {},
+    communityResources: [],
+    communityBookmarks: [],
     streak: 6
   };
 }

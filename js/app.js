@@ -13,7 +13,8 @@ const ui = {
   courseQuery:'', courseFilter:'all', assessFilter:'all', assignFilter:'all', classFilter:'upcoming', annFilter:'all',
   studentQuery:'', studentFilter:'all', taskSubject:'all', taskSort:'time', taskStatus:'all',
   calMonth:'', calSelected:'', analyticsTab:'mastery', aiTool:'quiz', aiVariant:0,
-  institutionQuery:'', institutionStatus:'all', adminQuery:'', userQuery:'', userRole:'all', userStatus:'all'
+  institutionQuery:'', institutionStatus:'all', adminQuery:'', userQuery:'', userRole:'all', userStatus:'all',
+  communityQuery:'', communityFilter:'all', communityScope:'all', communitySort:'recent'
 };
 
 /* ---------- Demo mastery ---------- */
@@ -102,7 +103,508 @@ function students(){
 function studentById(id){ return students().find(s=>s.id===id); }
 function classMastery(courseId){ const list=students().filter(s=>s.courseId===courseId); return list.length?avg(list.map(s=>s.mastery)):null; }
 
-/* ---------- Assignments & assessments ---------- */
+/* ---------- Community ---------- */
+function ensureCommunityState(){
+  if(!Array.isArray(state.communityResources)) state.communityResources=[];
+  if(!Array.isArray(state.communityBookmarks)) state.communityBookmarks=[];
+  if(state.communityResources.length) return;
+
+  const demoResources = [
+    {
+      id:'comm-flash-1',
+      type:'flashcards',
+      title:'Functions & Graphs Deck',
+      description:'Quick deck for graphing parent functions and transformations.',
+      subject:'General Mathematics',
+      topic:'Functions and Graphs',
+      tags:['graphing','review','algebra'],
+      creatorId:'student123',
+      creatorName:'Alex Cruz',
+      createdAt:offsetISO(-2),
+      updatedAt:offsetISO(-2),
+      visibility:'public',
+      status:'published',
+      likedBy:['teacher123','student123'],
+      savedBy:['admin123'],
+      comments:[{id:'comm-cm-1', authorId:'teacher123', authorName:'Prof. Maria Santos', text:'Helpful for a quick check before the quiz.', createdAt:offsetISO(-1)}],
+      participants:[],
+      content:{
+        deckId:'func-deck',
+        title:'Functions & Graphs Deck',
+        cards:[
+          {front:'What happens to the graph of y = x² when you add 3?', back:'It shifts upward by 3 units.'},
+          {front:'What does the expression f(x - 2) do?', back:'It shifts the graph 2 units to the right.'},
+          {front:'What is the y-intercept of y = 2x + 5?', back:'It is 5.'},
+          {front:'How is a reflection across the x-axis represented?', back:'By changing y to -y, or by using -f(x).'}
+        ]
+      }
+    },
+    {
+      id:'comm-exam-1',
+      type:'mock-exam',
+      title:'Unit 1 Algebra Challenge',
+      description:'A short practice exam that checks function notation, transformations, and domain.',
+      subject:'General Mathematics',
+      topic:'Algebra',
+      tags:['practice','exam','functions'],
+      creatorId:'student123',
+      creatorName:'Alex Cruz',
+      createdAt:offsetISO(-4),
+      updatedAt:offsetISO(-3),
+      visibility:'public',
+      status:'published',
+      likedBy:['teacher123'],
+      savedBy:['student123'],
+      comments:[{id:'comm-cm-2', authorId:'student123', authorName:'Alex Cruz', text:'This one is great for a quick self-check before class.', createdAt:offsetISO(-3)}],
+      participants:[],
+      content:{
+        title:'Unit 1 Algebra Challenge',
+        instructions:'Answer each item and submit when finished.',
+        difficulty:'Intermediate',
+        questions:[
+          {q:'If f(x) = 3x - 1, what is f(2)?', options:['5','6','7','4'], answer:1, points:1},
+          {q:'Which relation is a function?', options:['{(1,2),(1,3),(2,4)}','{(2,1),(2,5),(3,1)}','{(1,2),(2,3),(3,4)}','{(0,0),(0,1),(1,1)}'], answer:2, points:1},
+          {q:'The domain of 1/(x - 2) excludes:', options:['x = 0','x = -2','x = 1','x = 2'], answer:3, points:1},
+          {q:'Moving a graph 4 units right replaces x with:', options:['x - 4','x + 4','4x','x / 4'], answer:0, points:1}
+        ],
+        attempts:[{id:'comm-attempt-1', studentId:'student123', studentName:'Alex Cruz', score:75, submittedAt:offsetISO(-1), answers:[1,2,3,0]}]
+      }
+    },
+    {
+      id:'comm-meeting-1',
+      type:'study-meeting',
+      title:'Pre-Calculus Sprint Session',
+      description:'Join for a focused 90-minute review before the trig checkpoint.',
+      subject:'Pre-Calculus',
+      topic:'Trigonometric Identities',
+      tags:['meeting','trig','study-group'],
+      creatorId:'student123',
+      creatorName:'Alex Cruz',
+      createdAt:offsetISO(-5),
+      updatedAt:offsetISO(-5),
+      visibility:'public',
+      status:'published',
+      likedBy:['teacher123','student123'],
+      savedBy:[],
+      comments:[{id:'comm-cm-3', authorId:'student123', authorName:'Alex Cruz', text:'Let’s do a quick recap and then a practice round.', createdAt:offsetISO(-2)}],
+      participants:['student123','teacher123'],
+      content:{
+        title:'Pre-Calculus Sprint Session',
+        description:'Review identities, solve selected problems, and compare strategies.',
+        date:offsetISO(2),
+        startTime:'17:00',
+        endTime:'18:30',
+        platform:'Zoom',
+        url:'https://zoom.us/j/123456789',
+        maxParticipants:12,
+        participants:['student123','teacher123']
+      }
+    }
+  ];
+  state.communityResources = demoResources;
+  saveState();
+}
+function getCommunityResources(){ ensureCommunityState(); return state.communityResources.filter(Boolean); }
+function getCommunityResourceById(id){ return getCommunityResources().find(r=>r.id===id) || null; }
+function communityTypeLabel(type){ return ({flashcards:'Flashcards', 'mock-exam':'Mock Exam', 'study-meeting':'Study Meeting'})[type]||'Resource'; }
+function communityCreatorCanEdit(resource){ return !!currentUser && !!resource && resource.creatorId===currentUser.username; }
+function communityResourceCount(resource,key){ if(!resource) return 0; const list = resource[key] || []; return Array.isArray(list) ? list.length : 0; }
+function communityMeetingStatus(resource){
+  const meeting = resource?.content || {};
+  if(!meeting.date || !meeting.startTime || !meeting.endTime) return 'Upcoming';
+  const start = new Date(`${meeting.date}T${meeting.startTime}:00`), end = new Date(`${meeting.date}T${meeting.endTime}:00`), now = new Date();
+  if(now > end) return 'Ended';
+  if(now >= start) return 'Live';
+  return 'Upcoming';
+}
+function communityDeckLibrary(){
+  return [
+    {id:'deck-functions', title:'Functions & Graphs Deck', subject:'General Mathematics', cards:[{front:'What does a vertical shift do?', back:'It moves the graph up or down by the indicated amount.'},{front:'What does f(x - 2) do?', back:'It shifts the graph right by 2 units.'},{front:'What is a function?', back:'A relation where each input maps to exactly one output.'}]},
+    {id:'deck-writing', title:'Academic Writing Deck', subject:'English', cards:[{front:'What is a thesis statement?', back:'It is the claim or main argument the writing will defend.'},{front:'What makes a source credible?', back:'Authority, recency, relevance, and clear evidence.'},{front:'What is a topic sentence?', back:'It states the main idea of a paragraph.'}]}
+  ];
+}
+function communityExamLibrary(){
+  const list = (state.assessments || []).slice(0,2).map(a=>({id:a.id, title:a.title, subject:courseName(a.courseId), difficulty:a.type==='mastery'?'Mastery':'Practice', questions:(a.questions||[]).map(q=>({...q, options: [...q.options]}))}));
+  return list.length ? list : [{id:'demo-mock', title:'Mini Science Check', subject:'Physical Science', difficulty:'Practice', questions:[{q:'Which force resists motion?', options:['Gravity','Friction','Magnetism','Heat'], answer:1, points:1},{q:'Which state of matter has the most energy?', options:['Solid','Liquid','Gas','Plasma'], answer:3, points:1}]}];
+}
+function communitySaveResource(resource){
+  const existing = getCommunityResources();
+  if(existing.some(r=>r.id===resource.id)){
+    const idx = existing.findIndex(r=>r.id===resource.id); existing[idx] = resource; 
+  } else {
+    existing.unshift(resource);
+  }
+  state.communityResources = existing;
+  saveState();
+}
+function buildCommunityShareFields(type, resource=null){
+  const selectedType = type || resource?.type || 'flashcards';
+  const baseTitle = resource?.title || '';
+  const resourceBody = `
+    <label>Resource type
+      <select id="community-share-type" data-change="community-share-type">
+        <option value="flashcards" ${selectedType==='flashcards'?'selected':''}>Flashcards</option>
+        <option value="mock-exam" ${selectedType==='mock-exam'?'selected':''}>Mock Exams</option>
+        <option value="study-meeting" ${selectedType==='study-meeting'?'selected':''}>Study Meetings</option>
+      </select>
+    </label>
+    <label>Title
+      <input id="community-share-title" maxlength="90" value="${esc(baseTitle)}" placeholder="e.g. Quick Algebra Review Deck">
+    </label>
+    <label>Description
+      <textarea id="community-share-description" maxlength="420" placeholder="Describe what students will learn or practice.">${esc(resource?.description || '')}</textarea>
+    </label>
+    <label>Subject
+      <input id="community-share-subject" maxlength="60" value="${esc(resource?.subject || '')}" placeholder="e.g. General Mathematics">
+    </label>
+    <label>Topic
+      <input id="community-share-topic" maxlength="90" value="${esc(resource?.topic || '')}" placeholder="e.g. Functions and Graphs">
+    </label>
+    <label>Tags
+      <input id="community-share-tags" maxlength="120" value="${esc((resource?.tags||[]).join(', '))}" placeholder="review, algebra, weekly">
+    </label>
+  `;
+
+  if(selectedType==='flashcards'){
+    const library = communityDeckLibrary();
+    const chosen = resource?.content?.deckId || library[0].id;
+    const previewDeck = resource?.content?.cards?.length ? resource.content : library.find(d=>d.id===chosen) || library[0];
+    return `${resourceBody}
+      <label>Select an existing flashcard deck
+        <select id="community-deck-select" data-change="community-deck-select">
+          ${library.map(deck=>`<option value="${deck.id}" ${deck.id===chosen?'selected':''}>${esc(deck.title)}</option>`).join('')}
+        </select>
+      </label>
+      <div class="community-preview-box" id="community-deck-preview">
+        <strong>Deck preview</strong>
+        ${previewDeck.cards.map((card,i)=>`<div class="community-preview-item"><span>${i+1}</span><div><b>${esc(card.front)}</b><small>${esc(card.back)}</small></div></div>`).join('')||'<p>No cards available.</p>'}
+      </div>
+    `;
+  }
+
+  if(selectedType==='mock-exam'){
+    const library = communityExamLibrary();
+    const chosen = resource?.content?.examId || library[0].id;
+    const previewExam = resource?.content?.questions?.length ? resource.content : library.find(e=>e.id===chosen) || library[0];
+    return `${resourceBody}
+      <label>Select an existing mock exam
+        <select id="community-exam-select" data-change="community-exam-select">
+          ${library.map(exam=>`<option value="${exam.id}" ${exam.id===chosen?'selected':''}>${esc(exam.title)}</option>`).join('')}
+        </select>
+      </label>
+      <div class="community-preview-box" id="community-exam-preview">
+        <strong>Exam preview</strong>
+        ${previewExam.questions.map((q,i)=>`<div class="community-preview-item"><span>${i+1}</span><div><b>${esc(q.q)}</b><small>${esc(q.options.join(' · '))}</small></div></div>`).join('')||'<p>No questions available.</p>'}
+      </div>
+    `;
+  }
+
+  return `${resourceBody}
+    <label>Meeting date
+      <input id="community-meeting-date" type="date" value="${esc(resource?.content?.date || offsetISO(2))}">
+    </label>
+    <div class="two-input">
+      <label>Start time
+        <input id="community-meeting-start" type="time" value="${esc(resource?.content?.startTime || '17:00')}">
+      </label>
+      <label>End time
+        <input id="community-meeting-end" type="time" value="${esc(resource?.content?.endTime || '18:30')}">
+      </label>
+    </div>
+    <div class="two-input">
+      <label>Platform
+        <select id="community-meeting-platform">
+          <option value="Zoom" ${((resource?.content?.platform)||'Zoom')==='Zoom'?'selected':''}>Zoom</option>
+          <option value="Google Meet" ${((resource?.content?.platform)||'Zoom')==='Google Meet'?'selected':''}>Google Meet</option>
+          <option value="Microsoft Teams" ${((resource?.content?.platform)||'Zoom')==='Microsoft Teams'?'selected':''}>Microsoft Teams</option>
+        </select>
+      </label>
+      <label>Max participants
+        <input id="community-meeting-limit" type="number" min="2" max="60" value="${resource?.content?.maxParticipants || 12}">
+      </label>
+    </div>
+    <label>Meeting URL
+      <input id="community-meeting-url" type="url" value="${esc(resource?.content?.url || 'https://zoom.us/j/example')}">
+    </label>
+  `;
+}
+function showShareResourceModal(resourceId=null){
+  const resource = resourceId ? getCommunityResourceById(resourceId) : null;
+  const type = resource?.type || 'flashcards';
+  showModal(resource ? 'Edit community resource' : 'Share a resource', `
+    <div id="community-share-form-wrapper">${buildCommunityShareFields(type, resource)}</div>
+  `, `
+    <button class="ghost-btn" data-close>Cancel</button>
+    <button class="primary-btn" data-action="publish-community-resource" data-id="${resource ? resource.id : ''}">${resource ? 'Save changes' : 'Publish resource'}</button>
+  `,{wide:true,focus:false});
+}
+function normalizeTags(raw){ return String(raw||'').split(',').map(t=>t.trim()).filter(Boolean).slice(0,8); }
+function publishCommunityResource(resourceId=null){
+  const type = $('#community-share-type') ? $('#community-share-type').value : 'flashcards';
+  const title = val('community-share-title');
+  const description = val('community-share-description');
+  const subject = val('community-share-subject');
+  const topic = val('community-share-topic');
+  const tags = normalizeTags(val('community-share-tags'));
+
+  if(!title || title.length < 3) return fail('Resource title must be at least 3 characters.','community-share-title');
+  if(!description || description.length < 12) return fail('Please add a clearer description before publishing.','community-share-description');
+  if(!subject || subject.length < 2) return fail('Add a subject so students can find this resource.','community-share-subject');
+  if(!topic || topic.length < 2) return fail('Add a topic or unit.','community-share-topic');
+
+  const now = todayISO();
+  const base = resourceId ? getCommunityResourceById(resourceId) : null;
+  let content = {};
+
+  if(type==='flashcards'){
+    const deckId = $('#community-deck-select') ? $('#community-deck-select').value : communityDeckLibrary()[0].id;
+    const deck = communityDeckLibrary().find(d=>d.id===deckId) || communityDeckLibrary()[0];
+    if(!deck || !deck.cards || !deck.cards.length) return fail('Select a flashcard deck with cards before publishing.','community-deck-select');
+    content = { deckId: deck.id, title: deck.title, cards: deck.cards.map(card=>({...card})) };
+  }
+
+  if(type==='mock-exam'){
+    const examId = $('#community-exam-select') ? $('#community-exam-select').value : communityExamLibrary()[0].id;
+    const exam = communityExamLibrary().find(e=>e.id===examId) || communityExamLibrary()[0];
+    if(!exam || !exam.questions || !exam.questions.length) return fail('Select a mock exam with questions before publishing.','community-exam-select');
+    content = { examId: exam.id, title: exam.title, instructions: exam.instructions || 'Answer each question and submit your attempt.', difficulty: exam.difficulty || 'Practice', questions: exam.questions.map(q=>({...q, options:[...q.options]})) };
+  }
+
+  if(type==='study-meeting'){
+    const date = val('community-meeting-date'); const start = val('community-meeting-start'); const end = val('community-meeting-end'); const url = val('community-meeting-url'); const platform = $('#community-meeting-platform')?.value || 'Zoom'; const maxParticipants = Number($('#community-meeting-limit')?.value || 12);
+    if(!date) return fail('Choose a meeting date.','community-meeting-date');
+    if(!start || !end) return fail('Choose a valid start and end time.','community-meeting-start');
+    if(new Date(`${date}T${start}:00`) >= new Date(`${date}T${end}:00`)) return fail('Meeting end time must be later than start time.','community-meeting-end');
+    if(!validMeetingUrl(url)) return fail('Use a valid meeting URL such as https://zoom.us/j/example.','community-meeting-url');
+    content = { title: title, description: description, date, startTime:start, endTime:end, platform, url, maxParticipants, participants: base?.participants || [currentUser.username] };
+  }
+
+  const currentResource = resourceId ? getCommunityResourceById(resourceId) : null;
+  const next = {
+    id: currentResource?.id || uid('community'),
+    type,
+    title,
+    description,
+    subject,
+    topic,
+    tags,
+    creatorId: currentResource?.creatorId || currentUser.username,
+    creatorName: currentResource?.creatorName || user().name,
+    createdAt: currentResource?.createdAt || now,
+    updatedAt: now,
+    visibility: 'public',
+    status: 'published',
+    likedBy: currentResource?.likedBy || [],
+    savedBy: currentResource?.savedBy || [],
+    comments: currentResource?.comments || [],
+    participants: currentResource?.participants || [],
+    content
+  };
+
+  if(type==='study-meeting' && !next.participants.includes(currentUser.username)) next.participants = [currentUser.username, ...next.participants];
+  communitySaveResource(next);
+  closeModal(); renderCommunity($('#content')); toast(resourceId ? 'Your resource was updated.' : 'Resource published to the community.');
+}
+function toggleCommunityLike(resourceId){
+  const resource = getCommunityResourceById(resourceId); if(!resource) return;
+  const list = Array.isArray(resource.likedBy) ? resource.likedBy : [];
+  if(!currentUser) return toast('Log in to like resources.');
+  if(list.includes(currentUser.username)) resource.likedBy = list.filter(u=>u!==currentUser.username); else resource.likedBy = [...list, currentUser.username];
+  resource.updatedAt = todayISO();
+  saveState(); renderCommunity($('#content')); showCommunityResourceModal(resourceId); toast(list.includes(currentUser.username) ? 'Like removed.' : 'Resource liked.');
+}
+function toggleCommunitySave(resourceId){
+  const resource = getCommunityResourceById(resourceId); if(!resource) return;
+  const list = Array.isArray(resource.savedBy) ? resource.savedBy : [];
+  if(list.includes(currentUser.username)) resource.savedBy = list.filter(u=>u!==currentUser.username); else resource.savedBy = [...list, currentUser.username];
+  resource.updatedAt = todayISO();
+  saveState(); renderCommunity($('#content')); showCommunityResourceModal(resourceId); toast(list.includes(currentUser.username) ? 'Resource removed from saved items.' : 'Resource saved to your list.');
+}
+function toggleMeetingParticipation(resourceId){
+  const resource = getCommunityResourceById(resourceId); if(!resource || resource.type!=='study-meeting') return;
+  const list = Array.isArray(resource.participants) ? resource.participants : [];
+  if(list.includes(currentUser.username)) resource.participants = list.filter(u=>u!==currentUser.username); else resource.participants = [...new Set([...list, currentUser.username])];
+  resource.updatedAt = todayISO();
+  saveState(); renderCommunity($('#content')); showCommunityResourceModal(resourceId); toast(list.includes(currentUser.username) ? 'You left this meeting.' : 'You joined the meeting.');
+}
+function showCommunityResourceModal(resourceId){
+  const resource = getCommunityResourceById(resourceId); if(!resource) return toast('That community resource no longer exists.');
+  const likeCount = communityResourceCount(resource,'likedBy');
+  const saveCount = communityResourceCount(resource,'savedBy');
+  const participantList = Array.isArray(resource.participants) ? resource.participants : [];
+  const meetingStatus = communityMeetingStatus(resource);
+  const isLiked = currentUser ? (resource.likedBy||[]).includes(currentUser.username) : false;
+  const isSaved = currentUser ? (resource.savedBy||[]).includes(currentUser.username) : false;
+  const isJoined = currentUser ? participantList.includes(currentUser.username) : false;
+  const isOwner = communityCreatorCanEdit(resource);
+  const comments = Array.isArray(resource.comments) ? resource.comments : [];
+
+  const body = `
+    <div class="community-detail">
+      <div class="community-header-row">
+        <span class="resource-pill ${resource.type === 'flashcards' ? 'blue' : resource.type === 'mock-exam' ? 'yellow' : 'green'}">${communityTypeLabel(resource.type)}</span>
+        <span class="resource-pill muted">${esc(resource.subject)}</span>
+      </div>
+      <h3>${esc(resource.title)}</h3>
+      <p class="community-subtitle">Shared by ${esc(resource.creatorName)} · ${fmtShort(resource.createdAt)}</p>
+      <p>${esc(resource.description)}</p>
+      <div class="community-metadata">
+        <span>Topic: ${esc(resource.topic)}</span>
+        <span>Tags: ${resource.tags?.length ? resource.tags.map(t=>`<em>${esc(t)}</em>`).join(' ') : 'None'}</span>
+      </div>
+      ${resource.type==='flashcards' ? `<div class="community-preview-box"><strong>Preview</strong>${(resource.content?.cards||[]).map((card,i)=>`<div class="community-preview-item"><span>${i+1}</span><div><b>${esc(card.front)}</b><small>${esc(card.back)}</small></div></div>`).join('') || '<p>No cards available.</p>'}</div>` : ''}
+      ${resource.type==='mock-exam' ? `<div class="community-preview-box"><strong>Exam preview</strong>${(resource.content?.questions||[]).map((q,i)=>`<div class="community-preview-item"><span>${i+1}</span><div><b>${esc(q.q)}</b><small>${esc(q.options.join(' · '))}</small></div></div>`).join('') || '<p>No questions available.</p>'}</div>` : ''}
+      ${resource.type==='study-meeting' ? `<div class="community-preview-box"><strong>Meeting details</strong><div class="meeting-box"><strong>${esc(resource.content.platform||'Zoom')}</strong><p>${fmtLong(resource.content.date)} · ${fmtTime(resource.content.startTime)}–${fmtTime(resource.content.endTime)}</p><p>Participants: ${participantList.length}/${resource.content.maxParticipants || 12}</p><p><a href="${esc(resource.content.url||'#')}" target="_blank" rel="noreferrer">Join meeting</a></p></div></div>` : ''}
+      <div class="community-stats">
+        <span>❤ ${likeCount}</span>
+        <span>★ ${saveCount}</span>
+        <span>💬 ${comments.length}</span>
+        ${resource.type==='study-meeting' ? `<span>👥 ${participantList.length}</span>` : ''}
+      </div>
+      ${resource.type==='study-meeting' ? `<div class="community-actions-row"><button class="small-btn" data-action="toggle-community-meeting" data-id="${resource.id}">${isJoined ? 'Leave meeting' : 'Join meeting'}</button><span class="status ${meetingStatus==='Live'?'good':meetingStatus==='Ended'?'danger':'warn'}">${meetingStatus}</span></div>` : ''}
+      <div class="community-comments">
+        <h4>Comments</h4>
+        ${comments.length ? comments.map(comment=>`<div class="comment-item"><div><strong>${esc(comment.authorName)}</strong><small>${fmtShort(comment.createdAt)}</small></div><p>${esc(comment.text)}</p>${comment.authorId===currentUser?.username ? `<div class="comment-actions"><button class="text-btn" data-action="edit-community-comment" data-id="${resource.id}" data-comment-id="${comment.id}">Edit</button><button class="text-btn danger-text" data-action="delete-community-comment" data-id="${resource.id}" data-comment-id="${comment.id}">Delete</button></div>` : ''}</div>`).join('') : '<p class="muted-copy">No comments yet. Start the conversation.</p>'}
+      </div>
+      <div class="comment-box">
+        <textarea id="community-comment-text" maxlength="280" placeholder="Write a thoughtful comment..."></textarea>
+        <button class="primary-btn" data-action="post-community-comment" data-id="${resource.id}">Post comment</button>
+      </div>
+    </div>
+  `;
+
+  const actions = `
+    <button class="ghost-btn" data-action="toggle-community-like" data-id="${resource.id}">${isLiked ? 'Unlike' : 'Like'}</button>
+    <button class="ghost-btn" data-action="toggle-community-save" data-id="${resource.id}">${isSaved ? 'Remove save' : 'Save resource'}</button>
+    ${(resource.type === 'flashcards' || resource.type === 'mock-exam') ? `<button class="ghost-btn" data-action="copy-community-resource" data-id="${resource.id}">Copy to my collection</button>` : ''}
+    <button class="ghost-btn" data-action="copy-community-link" data-id="${resource.id}">Copy link</button>
+    ${isOwner ? `<button class="ghost-btn" data-action="edit-community-resource" data-id="${resource.id}">Edit</button><button class="ghost-btn danger-text" data-action="delete-community-resource" data-id="${resource.id}">Delete</button>` : ''}
+    <button class="primary-btn" data-close>Close</button>
+  `;
+  showModal('Community resource', body, actions, {wide:true, focus:false});
+}
+function postCommunityComment(resourceId){
+  const text = val('community-comment-text');
+  if(!text || text.length < 2) return fail('Comment cannot be empty.','community-comment-text');
+  const resource = getCommunityResourceById(resourceId); if(!resource) return;
+  resource.comments = [...(resource.comments||[]), {id:uid('comm-comment'), authorId:currentUser.username, authorName:user().name, text, createdAt:todayISO()}];
+  resource.updatedAt = todayISO();
+  saveState(); closeModal(); showCommunityResourceModal(resourceId); toast('Comment posted.');
+}
+function editCommunityComment(resourceId, commentId){
+  const resource = getCommunityResourceById(resourceId); if(!resource) return;
+  const comment = (resource.comments||[]).find(c=>c.id===commentId); if(!comment) return;
+  showModal('Edit comment', `<label>Comment<textarea id="community-comment-edit" maxlength="280">${esc(comment.text)}</textarea></label>`, `<button class="ghost-btn" data-close>Cancel</button><button class="primary-btn" data-action="save-community-comment" data-id="${resourceId}" data-comment-id="${commentId}">Save</button>`,{focus:false});
+}
+function saveCommunityComment(resourceId, commentId){
+  const text = val('community-comment-edit');
+  const resource = getCommunityResourceById(resourceId); if(!resource) return;
+  resource.comments = (resource.comments||[]).map(c=> c.id===commentId ? {...c, text, updatedAt:todayISO()} : c);
+  resource.updatedAt=todayISO();
+  saveState(); closeModal(); showCommunityResourceModal(resourceId); toast('Comment updated.');
+}
+function deleteCommunityComment(resourceId, commentId){
+  const resource = getCommunityResourceById(resourceId); if(!resource) return;
+  const target = (resource.comments||[]).find(c=>c.id===commentId); if(!target) return;
+  if(target.authorId !== currentUser.username) return toast('You can only delete your own comments.');
+  resource.comments = (resource.comments||[]).filter(c=>c.id!==commentId);
+  resource.updatedAt = todayISO();
+  saveState(); closeModal(); showCommunityResourceModal(resourceId); toast('Comment deleted.');
+}
+function deleteCommunityResource(resourceId){
+  const resource = getCommunityResourceById(resourceId); if(!resource) return;
+  if(!communityCreatorCanEdit(resource)) return toast('You can only delete your own resource.');
+  confirmDialog('Delete resource?',`<strong>${esc(resource.title)}</strong> will be removed from the community feed and all related comments will be deleted.`, 'Delete resource', ()=>{ state.communityResources = (state.communityResources || []).filter(r=>r.id!==resourceId); saveState(); closeModal(); renderCommunity($('#content')); toast('Resource deleted.'); });
+}
+function copyCommunityLink(resourceId){
+  const url = `${location.origin}${location.pathname}#community-${resourceId}`;
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(()=>toast('Community link copied.'),()=>toast('Link ready to copy: ' + url)); }
+  else { toast('Link ready to copy: ' + url); }
+}
+function copyCommunityResource(resourceId){
+  const source = getCommunityResourceById(resourceId); if(!source) return;
+  if(!['flashcards','mock-exam'].includes(source.type)) return toast('Only shared flashcards and mock exams can be copied into your collection.');
+  const copy = JSON.parse(JSON.stringify(source));
+  copy.id = uid('community-copy');
+  copy.creatorId = currentUser.username;
+  copy.creatorName = user().name;
+  copy.createdAt = todayISO();
+  copy.updatedAt = todayISO();
+  copy.title = `${source.title}${source.creatorId === currentUser.username ? ' (edited copy)' : ' (My copy)'}`;
+  copy.copiedFrom = source.id;
+  copy.sourceCreatorName = source.creatorName;
+  copy.likedBy = [];
+  copy.savedBy = [];
+  copy.comments = [{id:uid('comm-comment'), authorId:currentUser.username, authorName:user().name, text:'Copied from the shared community resource.', createdAt:todayISO()}];
+  communitySaveResource(copy);
+  renderCommunity($('#content'));
+  toast('A personal copy was added to your contributions.');
+}
+function renderCommunity(c){
+  ensureCommunityState();
+  const q=(ui.communityQuery||'').toLowerCase().trim();
+  const scope = ui.communityScope || 'all';
+  const filter = ui.communityFilter || 'all';
+  const sort = ui.communitySort || 'recent';
+  const resources = getCommunityResources().filter(resource=>{
+    if(scope==='mine' && resource.creatorId!==currentUser.username) return false;
+    if(scope==='saved' && !(resource.savedBy||[]).includes(currentUser.username)) return false;
+    if(filter!=='all' && resource.type!==filter) return false;
+    if(!q) return true;
+    const fields = [resource.title, resource.subject, resource.topic, resource.description, resource.creatorName, ...(resource.tags||[]), ...(resource.content?.cards||[]).map(card=>`${card.front} ${card.back}`), ...(resource.content?.questions||[]).map(qs=>`${qs.q} ${qs.options.join(' ')}`), resource.content?.platform || ''];
+    return fields.join(' ').toLowerCase().includes(q);
+  }).sort((a,b)=>{
+    if(sort==='popular') return (communityResourceCount(b,'likedBy') + communityResourceCount(b,'savedBy')) - (communityResourceCount(a,'likedBy') + communityResourceCount(a,'savedBy'));
+    if(sort==='saved') return communityResourceCount(b,'savedBy') - communityResourceCount(a,'savedBy');
+    return new Date(b.createdAt || todayISO()) - new Date(a.createdAt || todayISO());
+  });
+
+  c.innerHTML = pageTitle('COMMUNITY','Share resources, practice together, and learn from your peers.') + `
+    <div class="community-toolbar">
+      <button class="primary-btn" data-action="share-resource">+ Share Resource</button>
+      <div class="community-search">
+        <input data-input="community-search" value="${esc(ui.communityQuery||'')}" placeholder="Search resources, subjects, or creators" aria-label="Search community resources">
+      </div>
+      <label class="community-sort-wrap">
+        <span>Sort</span>
+        <select data-change="community-sort">
+          <option value="recent" ${sort==='recent'?'selected':''}>Most Recent</option>
+          <option value="popular" ${sort==='popular'?'selected':''}>Most Popular</option>
+          <option value="saved" ${sort==='saved'?'selected':''}>Most Saved</option>
+        </select>
+      </label>
+    </div>
+    <div class="community-filter-row">
+      <button class="filter-chip ${scope==='all'?'active':''}" data-action="community-scope" data-value="all">All</button>
+      <button class="filter-chip ${scope==='mine'?'active':''}" data-action="community-scope" data-value="mine">My Contributions</button>
+      <button class="filter-chip ${scope==='saved'?'active':''}" data-action="community-scope" data-value="saved">Saved</button>
+    </div>
+    <div class="community-filter-row type-row">
+      <button class="filter-chip ${filter==='all'?'active':''}" data-action="community-filter" data-value="all">All</button>
+      <button class="filter-chip ${filter==='flashcards'?'active':''}" data-action="community-filter" data-value="flashcards">Flashcards</button>
+      <button class="filter-chip ${filter==='mock-exam'?'active':''}" data-action="community-filter" data-value="mock-exam">Mock Exams</button>
+      <button class="filter-chip ${filter==='study-meeting'?'active':''}" data-action="community-filter" data-value="study-meeting">Study Meetings</button>
+    </div>
+    <div class="community-grid">
+      ${resources.length ? resources.map(resource=>`<article class="community-card" data-action="open-community-resource" data-id="${resource.id}">
+        <div class="community-card-head">
+          <span class="resource-pill ${resource.type === 'flashcards' ? 'blue' : resource.type === 'mock-exam' ? 'yellow' : 'green'}">${communityTypeLabel(resource.type)}</span>
+          <span class="resource-pill muted">${esc(resource.subject)}</span>
+        </div>
+        <h3>${esc(resource.title)}</h3>
+        <p>${esc(resource.description)}</p>
+        <div class="meta-row"><span>By ${esc(resource.creatorName)}</span><span>${fmtShort(resource.createdAt)}</span></div>
+        <div class="resource-tags">${(resource.tags||[]).slice(0,4).map(tag=>`<span>${esc(tag)}</span>`).join('') || '<span>community</span>'}</div>
+        <div class="resource-stats-row">
+          <span>❤ ${communityResourceCount(resource,'likedBy')}</span>
+          <span>★ ${communityResourceCount(resource,'savedBy')}</span>
+          <span>💬 ${(resource.comments||[]).length}</span>
+        </div>
+      </article>`).join('') : emptyState('No resources match', 'Try a different search or share your first resource.', '<button class="primary-btn" data-action="share-resource">+ Share Your First Resource</button>') }
+    </div>
+  `;
+}
+function renderCommunityPageForView(){ renderCommunity($('#content')); }
 function submissionFor(assignmentId,studentId=DEMO_STUDENT_ID){ return state.submissions.find(s=>s.assignmentId===assignmentId&&s.studentId===studentId); }
 function studentAssignmentStatus(a){ const s=submissionFor(a.id); return s?s.status:daysFromToday(a.due)<0?'Missing':'Not Started'; }
 function assignmentAverage(a){ const graded=state.submissions.filter(s=>s.assignmentId===a.id&&s.status==='Graded'); return graded.length?avg(graded.map(s=>s.score/a.points*100)):null; }
@@ -235,7 +737,7 @@ function logout(){
 }
 
 /* ---------- App shell ---------- */
-const STUDENT_NAV=[['dashboard','Dashboard','home'],['courses','My Courses','book'],['learning-path','Learning Path','path'],['study-plan','Study Plan','plan'],['virtual-class','Virtual Class','video'],['assessments','Assessments','check'],['assignments','Assignments','assignment'],['ai-tools','AI Study Tools','ai'],['progress','Progress','chart'],['calendar','Calendar','calendar'],['announcements','Announcements','bell'],['profile','Profile','user']];
+const STUDENT_NAV=[['dashboard','Dashboard','home'],['courses','My Courses','book'],['learning-path','Learning Path','path'],['study-plan','Study Plan','plan'],['virtual-class','Virtual Class','video'],['community','Community','people'],['assessments','Assessments','check'],['assignments','Assignments','assignment'],['ai-tools','AI Study Tools','ai'],['progress','Progress','chart'],['calendar','Calendar','calendar'],['announcements','Announcements','bell'],['profile','Profile','user']];
 const TEACHER_NAV=[['dashboard','Dashboard','home'],['courses','My Courses','book'],['students','Students','people'],['assessments','Assessments','check'],['assignments','Assignments','assignment'],['analytics','Learning Analytics','analytics'],['virtual-class','Virtual Class','video'],['ai-tools','AI Teaching Tools','ai'],['announcements','Announcements','bell'],['calendar','Calendar','calendar'],['profile','Profile','user']];
 const ADMIN_NAV=[['overview','Overview','home'],['students-teachers','Students and Teachers','people'],['subjects-courses','Subjects and Courses','book'],['sections-enrollment','Sections and Enrollment','chart'],['academic-calendar','Academic Calendar','calendar'],['virtual-classes','Virtual Classes','video'],['assignments-assessments','Assignments and Assessments','check'],['reports-analytics','Reports and Analytics','analytics'],['institution-announcements','Announcements','bell'],['institution-settings','Institution Settings','settings'],['profile','Profile','user']];
 const SUPERADMIN_NAV=[['overview','Overview','home'],['institution-management','Institution Management','building'],['administrator-management','Administrator Management','people'],['user-directory','User Directory','users'],['global-analytics','Global Analytics','chart'],['audit-logs','Audit Logs','file'],['announcements','Announcements','bell'],['platform-settings','Platform Settings','settings'],['profile','Profile','user']];
@@ -289,6 +791,7 @@ function renderView(){
     progress: renderProgress,
     calendar: renderCalendar,
     'virtual-class': renderVirtualClass,
+    community: renderCommunity,
     profile: renderProfile,
     students: renderStudents,
     analytics: renderAnalytics
@@ -1241,6 +1744,22 @@ const ACTIONS={
   'open-lesson':el=>{ if(!el.dataset.lesson) return; navigateTo('lesson',{courseId:el.dataset.course,lessonId:el.dataset.lesson}); },
   'toggle-lesson':el=>toggleLesson(el.dataset.course,el.dataset.lesson),
   'toggle-bookmark':el=>toggleBookmark(el.dataset.course),
+  'share-resource':()=>showShareResourceModal(),
+  'publish-community-resource':el=>publishCommunityResource(el.dataset.id || null),
+  'open-community-resource':el=>showCommunityResourceModal(el.dataset.id),
+  'community-filter':el=>{ ui.communityFilter=el.dataset.value; renderCommunity($('#content')); },
+  'community-scope':el=>{ ui.communityScope=el.dataset.value; renderCommunity($('#content')); },
+  'toggle-community-like':el=>toggleCommunityLike(el.dataset.id),
+  'toggle-community-save':el=>toggleCommunitySave(el.dataset.id),
+  'toggle-community-meeting':el=>toggleMeetingParticipation(el.dataset.id),
+  'copy-community-resource':el=>copyCommunityResource(el.dataset.id),
+  'edit-community-resource':el=>showShareResourceModal(el.dataset.id),
+  'delete-community-resource':el=>deleteCommunityResource(el.dataset.id),
+  'post-community-comment':el=>postCommunityComment(el.dataset.id),
+  'edit-community-comment':el=>editCommunityComment(el.dataset.id, el.dataset.commentId),
+  'delete-community-comment':el=>deleteCommunityComment(el.dataset.id, el.dataset.commentId),
+  'save-community-comment':el=>saveCommunityComment(el.dataset.id, el.dataset.commentId),
+  'copy-community-link':el=>copyCommunityLink(el.dataset.id),
   'back-to-courses':()=>navigateTo('courses'),
   'clear-course-search':()=>{ ui.courseQuery=''; $('#course-search').value=''; renderCourseGrid(); $('#course-search').focus(); },
   'reset-course-filters':()=>{ ui.courseQuery=''; ui.courseFilter='all'; renderCourses($('#content')); },
@@ -1347,6 +1866,10 @@ document.addEventListener('input',e=>{
   if(k==='institution-query'){ ui.institutionQuery=e.target.value; renderInstitutionManagement($('#content')); }
   if(k==='admin-query'){ ui.adminQuery=e.target.value; renderAdminManagement($('#content')); }
   if(k==='user-query'){ ui.userQuery=e.target.value; renderUserDirectory($('#content')); }
+  if(k==='community-search'){ ui.communityQuery=e.target.value; renderCommunity($('#content')); }
+  if(k==='community-share-type'){ const wrap=$('#community-share-form-wrapper'); if(wrap) wrap.innerHTML = buildCommunityShareFields(e.target.value); }
+  if(k==='community-deck-select'){ const preview=$('#community-deck-preview'); if(preview){ const deck = communityDeckLibrary().find(d=>d.id===e.target.value) || communityDeckLibrary()[0]; preview.innerHTML = `<strong>Deck preview</strong>${(deck?.cards||[]).map((card,i)=>`<div class="community-preview-item"><span>${i+1}</span><div><b>${esc(card.front)}</b><small>${esc(card.back)}</small></div></div>`).join('') || '<p>No cards available.</p>'}`; } }
+  if(k==='community-exam-select'){ const preview=$('#community-exam-preview'); if(preview){ const exam = communityExamLibrary().find(d=>d.id===e.target.value) || communityExamLibrary()[0]; preview.innerHTML = `<strong>Exam preview</strong>${(exam?.questions||[]).map((q,i)=>`<div class="community-preview-item"><span>${i+1}</span><div><b>${esc(q.q)}</b><small>${esc(q.options.join(' · '))}</small></div></div>`).join('') || '<p>No questions available.</p>'}`; } }
   if(e.target.classList.contains('invalid')) e.target.classList.remove('invalid');
 });
 document.addEventListener('change',e=>{
@@ -1357,6 +1880,7 @@ document.addEventListener('change',e=>{
   if(k==='institution-status'){ ui.institutionStatus=e.target.value; renderInstitutionManagement($('#content')); }
   if(k==='user-role'){ ui.userRole=e.target.value; renderUserDirectory($('#content')); }
   if(k==='user-status'){ ui.userStatus=e.target.value; renderUserDirectory($('#content')); }
+  if(k==='community-sort'){ ui.communitySort=e.target.value; renderCommunity($('#content')); }
   if(k==='setting'){ const u=currentUser.username; state.settings[u]={...settingsFor(u),[e.target.dataset.key]:e.target.checked}; saveState(); toast('Notification setting saved.'); }
 });
 document.addEventListener('keydown',e=>{
